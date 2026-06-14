@@ -324,13 +324,14 @@
    :isaac.config/schema (select-keys config-schema/contributions [:hail])})
 
 (def baseline-hooks-manifest
-  {:id :isaac.hooks :version "0.1.0" :builtin? true :factory 'isaac.hooks.module/create-module
-   :berths {:isaac.server/hook {:description "Event hooks."
-                                :schema {:type :map
-                                         :key-spec {:type :keyword}
-                                         :value-spec {:type :map
-                                                      :factory 'isaac.hooks/register-hook-entry!
-                                                      :schema {:factory {:type :symbol :validations [:present?]}}}}}}
+  {:id :isaac.hooks :version "0.1.0" :builtin? true :factory 'isaac.module.protocol/module
+   :berths {:isaac.hooks/hook {:description "Event hooks installed into the hook registry."
+                               :schema {:type :map
+                                        :key-spec {:type :keyword}
+                                        :value-spec {:type :map
+                                                     :factory 'isaac.hooks/register-hook-entry!
+                                                     :schema {:factory {:type :symbol :validations [:present?]}}}}}}
+   :isaac.server/route [{:method :* :path "/hooks/*" :handler 'isaac.hooks/handler}]
    :isaac.config/schema (select-keys config-schema/contributions [:hooks])})
 
 (def baseline-cron-manifest
