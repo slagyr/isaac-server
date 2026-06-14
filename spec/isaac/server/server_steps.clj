@@ -9,6 +9,8 @@
     [isaac.config.resolve :as resolve]
     [isaac.config.runtime :as runtime]
     [isaac.foundation.fs-steps :as ffs]
+    [isaac.foundation.root-steps :as froot]
+    [isaac.session.store.memory :as memory-store]
     [isaac.server.cli :as server]
     [isaac.hail.delivery-worker :as hail-delivery-worker]
     [isaac.hail.router :as hail-router]
@@ -55,6 +57,41 @@
   (fn [path]
     (when-let [source (g/get :config-change-source)]
       (runtime/notify-path! source path))))
+
+(froot/register-root-setup-hook!
+  (fn [abs-dir]
+    (reset! comm-registry/*registry* (comm-registry/fresh-registry))
+    (store/register-store! (memory-store/create-store abs-dir))))
+
+(defn- grover-root-dir []
+  (or (g/get :runtime-root-dir) (g/get :root)))
+
+(defn- grover-mem-fs []
+  (or (g/get :mem-fs) (nexus/get :fs) (fs/real-fs)))
+
+(defn- with-grover-fs [f]
+  (nexus/-with-nested-nexus {:fs (grover-mem-fs)}
+    (f)))
+
+(defn- write-grover-defaults! []
+  (let [root (str (grover-root-dir) "/config")
+        fs*  (grover-mem-fs)]
+    (fs/mkdirs fs* root)
+    (fs/spit fs* (str root "/isaac.edn")
+             (pr-str {:defaults {:crew "main" :model "grover"}}))
+    (fs/mkdirs fs* (str root "/models"))
+    (fs/mkdirs fs* (str root "/providers"))
+    (fs/mkdirs fs* (str root "/crew"))
+    (fs/spit fs* (str root "/models/grover.edn")
+             (pr-str {:model "echo" :provider :grover :context-window 32768}))
+    (fs/spit fs* (str root "/providers/grover.edn") (pr-str {}))
+    (fs/spit fs* (str root "/crew/main.edn")
+             (pr-str {:model :grover :soul "You are Atticus."}))
+    (g/dissoc! :feature-config)))
+
+(defn default-grover-setup []
+  (froot/initialize-root! "target/test-state" true)
+  (with-grover-fs write-grover-defaults!))
 
 (defn- parse-config-value [value]
   (cond
@@ -741,6 +778,10 @@
 ;; endregion ^^^^^ Log Assertions ^^^^^
 
 ;; region ----- Routing -----
+
+(defgiven "default Grover setup" isaac.server.server-steps/default-grover-setup
+  "In-memory state dir at target/test-state plus grover provider, echo model,
+   and main crew with soul 'You are Atticus.' on disk.")
 
 (defgiven "config:" isaac.server.server-steps/configure
   "Sets server-config entries via dot-path keys (e.g. server.port,

@@ -40,7 +40,7 @@
     (let [response (sut/handler {:request-method :get :uri "/status"})]
       (should= 200 (:status response))))
 
-  (it "registers the hooks route from the server manifest's :isaac.server/route berth"
+  (it "registers the hooks route from the hooks manifest's :isaac.server/route berth"
     ;; Phase 5 of brth (isaac-8v1n): routes flow through
     ;; process-manifest-berths!. Phase 5b (isaac-v5js) folded
     ;; route-prefix into route — the hooks contribution is now a

@@ -1,0 +1,33 @@
+{:id :isaac.cron,
+ :version "0.1.0",
+ :builtin? true,
+ :factory isaac.cron.module/create-module,
+ :isaac.config/schema
+ {:cron
+  {:entity-dir "cron",
+   :frontmatter? true,
+   :merge-root-entity? true,
+   :companion {:field :prompt, :mode :required},
+   :schema
+   {:name "cron table",
+    :type :map,
+    :description
+    "Cron job configurations (map of job name -> cron job config)",
+    :key-spec {:type :string},
+    :value-spec
+    {:name :cron-job,
+     :type :map,
+     :description "Cron job configuration",
+     :schema
+     {:crew
+      {:type :id,
+       :description "Crew id to run the job as",
+       :validations [:crew-exists?]},
+      :expr {:type :string, :description "5-field cron expression"},
+      :prompt
+      {:type :string,
+       :description "Prompt sent when the cron job fires"}}}}},
+  :tz
+  {:schema
+   {:type :string,
+    :description "IANA timezone name for cron evaluation"}}}}

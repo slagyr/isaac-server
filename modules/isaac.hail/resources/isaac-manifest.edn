@@ -1,0 +1,57 @@
+{:id :isaac.hail,
+ :version "0.1.0",
+ :builtin? true,
+ :factory isaac.hail.module/create-module,
+ :isaac/cli
+ {:hail
+  {:usage "hail <subcommand> [options]",
+   :summary "Produce hail records",
+   :namespace isaac.hail.cli}},
+ :isaac.server/route
+ [{:method :post,
+   :path "/hail/send",
+   :handler isaac.hail.http/handler}],
+ :isaac.config/schema
+ {:hail
+  {:entity-dir "hail",
+   :merge-root-entity? true,
+   :companion {:field :prompt, :mode :optional},
+   :schema
+   {:name :hail,
+    :type :map,
+    :snapshot-only? true,
+    :description "Hail band declarations",
+    :key-spec {:type :string},
+    :value-spec
+    {:name :hail-band,
+     :type :map,
+     :description "Hail band declaration",
+     :schema
+     {:addressing
+      {:type :ignore,
+       :description "Derived: bands must address crews or sessions",
+       :validations
+       [[:requires-any? :crew :crew-tags :session :session-tags]]},
+      :crew
+      {:type :seq,
+       :description "Explicit crew ids eligible for the band",
+       :spec {:type :string}},
+      :crew-tags
+      {:type :seq,
+       :description "Tags crews must carry",
+       :spec {:type :keyword}},
+      :prompt
+      {:type :string,
+       :description "Optional companion markdown prompt for the band"},
+      :reach
+      {:type :keyword,
+       :description "How many listeners receive the hail",
+       :validations [[:one-of? :one :all]]},
+      :session
+      {:type :seq,
+       :description "Explicit session ids eligible for the band",
+       :spec {:type :string}},
+      :session-tags
+      {:type :seq,
+       :description "Tags sessions must carry",
+       :spec {:type :keyword}}}}}}}}

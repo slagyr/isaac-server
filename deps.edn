@@ -1,50 +1,53 @@
 {:paths ["src" "resources"]
 
  :deps {io.github.slagyr/isaac-foundation {:local/root "../isaac-foundation"}
+        isaac.agent/isaac.agent           {:local/root "modules/isaac.agent"}
+        isaac.hail/isaac.hail             {:local/root "modules/isaac.hail"}
+        isaac.hooks/isaac.hooks           {:local/root "modules/isaac.hooks"}
+        isaac.cron/isaac.cron             {:local/root "modules/isaac.cron"}
+        isaac.host/isaac.host             {:local/root "modules/isaac.host"}
         cheshire/cheshire                 {:mvn/version "5.13.0"}
         clj-commons/clj-yaml              {:mvn/version "1.0.29"}
         clout/clout                       {:mvn/version "1.1.0"}
         com.cleancoders.c3kit/apron       {:mvn/version "3.0.0"}
         http-kit/http-kit                 {:mvn/version "2.8.0"}
+        org.babashka/http-client          {:mvn/version "0.4.22"}
         org.clojure/tools.cli             {:mvn/version "1.1.230"}}
 
  :aliases
- {:test {:extra-paths ["spec"
-                       "../isaac/src"
-                       "../isaac/resources"
-                       "../isaac/spec"]
-         :extra-deps  {speclj/speclj                       {:mvn/version "3.13.0"}
-                       babashka/process                    {:mvn/version "0.5.22"}
-                       io.github.slagyr/gherclj            {:git/tag "v1.3.0" :git/sha "9c3bb1d"}
-                       io.github.cleancoders/c3kit-wire   {:git/tag "2.5.1" :git/sha "1fae444"}
-                       org.babashka/http-client            {:mvn/version "0.4.22"}
-                       marigold.bridge/marigold.bridge     {:local/root "../isaac/modules/marigold.bridge"}
-                       marigold.longwave/marigold.longwave {:local/root "../isaac/modules/marigold.longwave"}}}
+ {:test {:extra-paths ["spec"]
+         :extra-deps  {io.github.slagyr/isaac-server-test-support     {:local/root "spec-support"}
+                       io.github.slagyr/isaac-foundation-test-support {:local/root "../isaac-foundation/spec-support"}
+                       speclj/speclj                                  {:mvn/version "3.13.0"}
+                       babashka/process                               {:mvn/version "0.5.22"}
+                       io.github.slagyr/gherclj                       {:git/tag "v1.3.0" :git/sha "9c3bb1d"}
+                       io.github.cleancoders/c3kit-wire               {:git/tag "2.5.1" :git/sha "1fae444"}
+                       org.babashka/http-client                       {:mvn/version "0.4.22"}
+                       marigold.bridge/marigold.bridge                {:local/root "../isaac-foundation/modules/marigold.bridge"}
+                       marigold.longwave/marigold.longwave            {:local/root "../isaac-foundation/modules/marigold.longwave"}}}
 
-  :spec {:extra-paths ["spec"
-                      "../isaac/src"
-                      "../isaac/resources"
-                      "../isaac/spec"]
-         :extra-deps  {speclj/speclj                       {:mvn/version "3.13.0"}
-                       babashka/process                    {:mvn/version "0.5.22"}
-                       io.github.slagyr/gherclj            {:git/tag "v1.3.0" :git/sha "9c3bb1d"}
-                       io.github.cleancoders/c3kit-wire    {:git/tag "2.5.1" :git/sha "1fae444"}
-                       org.babashka/http-client            {:mvn/version "0.4.22"}
-                       marigold.bridge/marigold.bridge     {:local/root "../isaac/modules/marigold.bridge"}
-                       marigold.longwave/marigold.longwave {:local/root "../isaac/modules/marigold.longwave"}}
+  :spec {:extra-paths ["spec"]
+         :extra-deps  {io.github.slagyr/isaac-server-test-support     {:local/root "spec-support"}
+                       io.github.slagyr/isaac-foundation-test-support {:local/root "../isaac-foundation/spec-support"}
+                       speclj/speclj                                  {:mvn/version "3.13.0"}
+                       babashka/process                               {:mvn/version "0.5.22"}
+                       io.github.slagyr/gherclj                       {:git/tag "v1.3.0" :git/sha "9c3bb1d"}
+                       io.github.cleancoders/c3kit-wire               {:git/tag "2.5.1" :git/sha "1fae444"}
+                       org.babashka/http-client                       {:mvn/version "0.4.22"}
+                       marigold.bridge/marigold.bridge                {:local/root "../isaac-foundation/modules/marigold.bridge"}
+                       marigold.longwave/marigold.longwave            {:local/root "../isaac-foundation/modules/marigold.longwave"}}
          :main-opts   ["-m" "speclj.main" "-c" "-D" "spec"]}
 
-  :features {:extra-paths ["spec"
-                           "../isaac/src"
-                           "../isaac/resources"
-                           "../isaac/spec"]
-             :extra-deps  {speclj/speclj                       {:mvn/version "3.13.0"}
-                           babashka/process                    {:mvn/version "0.5.22"}
-                           io.github.slagyr/gherclj            {:git/tag "v1.3.0" :git/sha "9c3bb1d"}
-                           io.github.cleancoders/c3kit-wire    {:git/tag "2.5.1" :git/sha "1fae444"}
-                           org.babashka/http-client            {:mvn/version "0.4.22"}
-                           marigold.bridge/marigold.bridge     {:local/root "../isaac/modules/marigold.bridge"}
-                           marigold.longwave/marigold.longwave {:local/root "../isaac/modules/marigold.longwave"}}
+  :features {:extra-paths ["spec"]
+             :extra-deps  {io.github.slagyr/isaac-server-test-support     {:local/root "spec-support"}
+                       io.github.slagyr/isaac-foundation-test-support {:local/root "../isaac-foundation/spec-support"}
+                           speclj/speclj                                  {:mvn/version "3.13.0"}
+                           babashka/process                               {:mvn/version "0.5.22"}
+                           io.github.slagyr/gherclj                       {:git/tag "v1.3.0" :git/sha "9c3bb1d"}
+                           io.github.cleancoders/c3kit-wire               {:git/tag "2.5.1" :git/sha "1fae444"}
+                           org.babashka/http-client                       {:mvn/version "0.4.22"}
+                           marigold.bridge/marigold.bridge                {:local/root "../isaac-foundation/modules/marigold.bridge"}
+                           marigold.longwave/marigold.longwave            {:local/root "../isaac-foundation/modules/marigold.longwave"}}
              :main-opts   ["-m" "gherclj.main"
                            "-f" "features"
                            "-s" "isaac.**-steps"

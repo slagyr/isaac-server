@@ -13,7 +13,7 @@
                         keys
                         (map name)
                         set)]
-      (should= #{"auth" "config" "crew" "hail" "logs" "prompt" "server" "service" "sessions"}
+      (should= #{"server" "service"}
                commands)))
 
   (it "is a builtin module"
