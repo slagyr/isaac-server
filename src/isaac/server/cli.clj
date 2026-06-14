@@ -12,7 +12,12 @@
     [isaac.logger :as log]
     [isaac.nexus :as nexus]
     [isaac.server.app :as app]
-    [isaac.tool.builtin :as builtin]))
+    ))
+
+(defn- register-builtins! []
+  (when-let [register! (try (requiring-resolve 'isaac.tool.builtin/register-all!)
+                            (catch Throwable _ nil))]
+    (register!)))
 
 (defn block!
   "Block the current thread until interrupted."
@@ -56,7 +61,7 @@
         (log/set-output! :file)))
     (nexus/-with-nested-nexus {:fs fs*}
       (nexus/init! {:fs fs*})
-      (builtin/register-all!)
+      (register-builtins!)
       (if-let [{started-port :port started-host :host}
                (app/start! {:cfg       loaded-config
                             :root      root-dir

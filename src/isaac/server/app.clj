@@ -6,16 +6,11 @@
     [isaac.comm.registry :as comm-registry]
     [isaac.config.api :as config]
     [isaac.config.loader :as loader]
-    [isaac.config.resolve :as resolve]
+    [isaac.config.server-config :as server-config]
     [isaac.config.runtime :as runtime]
-    [isaac.cron.service :as cron-service]
     [isaac.comm.delivery.worker :as worker]
     [isaac.fs :as fs]
-    [isaac.hail.bands :as hail-bands]
-    [isaac.hail.delivery-worker :as hail-delivery-worker]
-    [isaac.hail.router :as hail-router]
     [isaac.config.root :as root]
-    [isaac.hooks :as hooks]
     [isaac.logger :as log]
     [isaac.module.loader :as module-loader]
     [isaac.scheduler.runtime :as scheduler-core]
@@ -33,10 +28,20 @@
 (defn current-config []
   (loader/snapshot "server/current-config accessor"))
 
+(def ^:private optional-registry-syms
+  '[isaac.hail.bands/registry
+    isaac.hooks/registry
+    isaac.cron.service/registry])
+
+(defn- resolve-var [sym]
+  (try (requiring-resolve sym) (catch Throwable _ nil)))
+
+(defn- resolve-registry [sym]
+  (when-let [v (resolve-var sym)]
+    (if (var? v) @v v)))
+
 (defn registries []
-  [hail-bands/registry
-   hooks/registry
-   cron-service/registry])
+  (vec (keep resolve-registry optional-registry-syms)))
 
 
 (defn- dev-handler [handler-opts]
@@ -99,13 +104,20 @@
        (not (http/loopback-host? host))
        (str/blank? (get-in cfg [:server :auth :token]))))
 
+(defn- start-optional-service! [start-sym]
+  (when-let [start! (resolve-var start-sym)]
+    (start! {})))
+
+(defn- stop-optional-service! [stop-sym instance]
+  (when (and instance (resolve-var stop-sym))
+    ((resolve-var stop-sym) instance)))
+
 (defn- start-background-services [_opts scheduler]
-  {:delivery    (when scheduler
-                  (worker/start! {}))
-   :hail-delivery (when scheduler
-                    (hail-delivery-worker/start! {}))
-   :hail-router (when scheduler
-                  (hail-router/start! {}))})
+  (if scheduler
+    {:delivery        (worker/start! {})
+     :hail-delivery   (start-optional-service! 'isaac.hail.delivery-worker/start!)
+     :hail-router     (start-optional-service! 'isaac.hail.router/start!)}
+    {}))
 
 (defn- reset-server-state! [host-ctx comm-registry registries config-source connect-ws! reloader scheduler delivery hail-delivery hail-router server actual host start-http-server?]
   (reset! state {:host-ctx           host-ctx
@@ -140,7 +152,7 @@
                              root (assoc :root root))
         comm-registry      @comm-registry/*registry*
         registries         (registries)
-        server-cfg         (resolve/server-config cfg)
+        server-cfg         (server-config/server-config cfg)
         port               (or (:port opts) (:port server-cfg))
         host               (or (:host opts) (:host server-cfg))
         dev?               (true? (:dev opts))
@@ -202,10 +214,8 @@
   (when-let [{:keys [config-source scheduler delivery hail-delivery hail-router host-ctx registries reloader server]} @state]
     (when delivery
       (worker/stop! delivery))
-    (when hail-delivery
-      (hail-delivery-worker/stop! hail-delivery))
-    (when hail-router
-      (hail-router/stop! hail-router))
+    (stop-optional-service! 'isaac.hail.delivery-worker/stop! hail-delivery)
+    (stop-optional-service! 'isaac.hail.router/stop! hail-router)
     (module-loader/shutdown-modules!)
     (when scheduler
       (scheduler-core/shutdown! scheduler))

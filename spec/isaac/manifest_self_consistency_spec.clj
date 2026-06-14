@@ -8,40 +8,15 @@
     [isaac.schema.registered-in]
     [isaac.session.compaction-schema :as compaction-schema]
     [clojure.java.io :as io]
-    [clojure.string :as str]
     [speclj.core :refer :all]))
 
 (defn- read-manifest [path]
   (-> path io/file slurp edn/read-string))
 
-(defn- ensure-local-deps! [path]
-  ;; Under bb, dynamically classpath the module so requiring-resolve can
-  ;; find its symbols. Under JVM, the test alias in deps.edn already
-  ;; pre-declares the modules (clojure.repl.deps/add-libs is REPL-only
-  ;; and can't add deps from a spec-runner thread), so this is a no-op.
-  (when-let [add-deps (try (requiring-resolve 'babashka.deps/add-deps)
-                           (catch Throwable _ nil))]
-    (cond
-      (str/starts-with? path "modules/")
-      (when-let [module-root (second (re-find #"^(modules/[^/]+)" path))]
-        (add-deps {:deps {(symbol module-root) {:local/root module-root}}}))
-
-      (str/starts-with? path "../isaac-cron/")
-      (add-deps {:deps {'io.github.slagyr/isaac-cron {:local/root "../isaac-cron"}}})
-
-      (str/starts-with? path "../isaac-hail/")
-      (add-deps {:deps {'io.github.slagyr/isaac-hail {:local/root "../isaac-hail"}}})
-
-      (str/starts-with? path "../isaac-hooks/")
-      (add-deps {:deps {'io.github.slagyr/isaac-hooks {:local/root "../isaac-hooks"}}}))))
-
-(defn- manifest-paths []
-  ["resources/isaac-manifest.edn"
-   "../isaac-agent/resources/isaac-manifest.edn"
-   "../isaac-hail/resources/isaac-manifest.edn"
-   "../isaac-hooks/resources/isaac-manifest.edn"
-   "../isaac-cron/resources/isaac-manifest.edn"
-   "modules/isaac.host/resources/isaac-manifest.edn"])
+(defn- builtin-manifests []
+  (->> (module-loader/builtin-index)
+       (map (fn [[_ {:keys [manifest]}]] manifest))
+       (remove nil?)))
 
 (defn- manifest-symbols
   "Every symbol referenced anywhere in the manifest data — berth and
@@ -56,8 +31,7 @@
     :else           []))
 
 (defn- schema-contributions []
-  (->> (manifest-paths)
-       (map read-manifest)
+  (->> (builtin-manifests)
        (map :isaac.config/schema)
        (remove nil?)
        (apply merge {})))
@@ -92,9 +66,7 @@
       (should= [] (->> paths frequencies (keep (fn [[p n]] (when (> n 1) p))) vec))))
 
   (it "resolves every symbol the manifest references (factories, handlers, check :fns, cli namespaces, bootstrap)"
-    (doseq [path (manifest-paths)
-            :let [manifest (read-manifest path)]]
-      (ensure-local-deps! path)
+    (doseq [manifest (builtin-manifests)]
       (doseq [sym (distinct (manifest-symbols manifest))]
         (if (namespace sym)
           (should-not-be-nil (requiring-resolve sym))   ; ns/var reference
