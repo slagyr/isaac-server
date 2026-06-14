@@ -2,7 +2,7 @@
 
  :deps {io.github.slagyr/isaac-foundation {:local/root "../isaac-foundation"}
         io.github.slagyr/isaac-agent        {:local/root "../isaac-agent"}
-        isaac.hail/isaac.hail             {:local/root "modules/isaac.hail"}
+        io.github.slagyr/isaac-hail         {:local/root "../isaac-hail"}
         isaac.hooks/isaac.hooks           {:local/root "modules/isaac.hooks"}
         io.github.slagyr/isaac-cron         {:local/root "../isaac-cron"}
         isaac.host/isaac.host             {:local/root "modules/isaac.host"}

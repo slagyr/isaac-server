@@ -27,12 +27,15 @@
         (add-deps {:deps {(symbol module-root) {:local/root module-root}}}))
 
       (str/starts-with? path "../isaac-cron/")
-      (add-deps {:deps {'io.github.slagyr/isaac-cron {:local/root "../isaac-cron"}}}))))
+      (add-deps {:deps {'io.github.slagyr/isaac-cron {:local/root "../isaac-cron"}}})
+
+      (str/starts-with? path "../isaac-hail/")
+      (add-deps {:deps {'io.github.slagyr/isaac-hail {:local/root "../isaac-hail"}}}))))
 
 (defn- manifest-paths []
   ["resources/isaac-manifest.edn"
    "../isaac-agent/resources/isaac-manifest.edn"
-   "modules/isaac.hail/resources/isaac-manifest.edn"
+   "../isaac-hail/resources/isaac-manifest.edn"
    "modules/isaac.hooks/resources/isaac-manifest.edn"
    "../isaac-cron/resources/isaac-manifest.edn"
    "modules/isaac.host/resources/isaac-manifest.edn"])
