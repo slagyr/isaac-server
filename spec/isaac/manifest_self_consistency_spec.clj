@@ -1,0 +1,74 @@
+(ns isaac.manifest-self-consistency-spec
+  (:require
+    [clojure.edn :as edn]
+    [isaac.config.berths :as berths]
+    [isaac.module.loader :as module-loader]
+    [isaac.config.validation]
+    [isaac.schema.meta]
+    [isaac.schema.registered-in]
+    [isaac.session.compaction-schema :as compaction-schema]
+    [clojure.java.io :as io]
+    [clojure.string :as str]
+    [speclj.core :refer :all]))
+
+(defn- read-manifest [path]
+  (-> path io/file slurp edn/read-string))
+
+(defn- ensure-local-deps! [path]
+  ;; Under bb, dynamically classpath the module so requiring-resolve can
+  ;; find its symbols. Under JVM, the test alias in deps.edn already
+  ;; pre-declares the modules (clojure.repl.deps/add-libs is REPL-only
+  ;; and can't add deps from a spec-runner thread), so this is a no-op.
+  (when-let [add-deps (try (requiring-resolve 'babashka.deps/add-deps)
+                           (catch Throwable _ nil))]
+    (when (str/starts-with? path "modules/")
+      (when-let [module-root (second (re-find #"^(modules/[^/]+)" path))]
+        (add-deps {:deps {(symbol module-root) {:local/root module-root}}})))))
+
+(defn- manifest-paths []
+  ["resources/isaac-manifest.edn"])
+
+(defn- manifest-symbols
+  "Every symbol referenced anywhere in the manifest data — berth and
+   contribution :factory, route :handler, :isaac.config/check :fn, :cli
+   :namespace, :bootstrap, the top-level :factory. Manifests are pure
+   data, so each symbol is a reference that must resolve."
+  [x]
+  (cond
+    (symbol? x)     [x]
+    (map? x)        (mapcat manifest-symbols (vals x))
+    (sequential? x) (mapcat manifest-symbols x)
+    :else           []))
+
+(describe "manifest self-consistency"
+
+  (it "the server manifest is pure data — clojure.edn parses it with no readers"
+    (let [manifest (edn/read-string (slurp "resources/isaac-manifest.edn"))]
+      (should= :isaac.server (:id manifest))
+      (should= manifest (edn/read-string (pr-str manifest)))))
+
+  (it "every inline :isaac.config/schema contribution meta-validates"
+    (let [manifest (edn/read-string (slurp "resources/isaac-manifest.edn"))]
+      (doseq [[config-key {:keys [schema]}] (:isaac.config/schema manifest)]
+        (should (map? schema))
+        (should-not-throw (isaac.schema.meta/conform-spec! schema)))))
+
+  (it "the embedded compaction schemas stay aligned with isaac.session.compaction-schema"
+    (let [manifest      (edn/read-string (slurp "resources/isaac-manifest.edn"))
+          contributions (:isaac.config/schema manifest)]
+      (doseq [path [[:crew :schema :value-spec :schema :compaction :schema]
+                    [:models :schema :value-spec :schema :compaction :schema]
+                    [:defaults :schema :schema :compaction :schema]]]
+        (should= compaction-schema/config-schema (get-in contributions path)))))
+
+  (it "no config path is claimed twice — one schema owner per path (berth :config XOR :isaac.config/schema factory)"
+    (let [paths (berths/config-paths (module-loader/builtin-index))]
+      (should= [] (->> paths frequencies (keep (fn [[p n]] (when (> n 1) p))) vec))))
+  (it "resolves every symbol the manifest references (factories, handlers, check :fns, cli namespaces, bootstrap)"
+    (doseq [path (manifest-paths)
+            :let [manifest (read-manifest path)]]
+      (ensure-local-deps! path)
+      (doseq [sym (distinct (manifest-symbols manifest))]
+        (if (namespace sym)
+          (should-not-be-nil (requiring-resolve sym))   ; ns/var reference
+          (should-not-throw (require sym)))))))          ; bare namespace (e.g. :cli :namespace)

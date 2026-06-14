@@ -1,0 +1,43 @@
+{:paths ["src" "resources" "spec"]
+
+ :deps {com.cleancoders.c3kit/apron {:mvn/version "3.0.0"}
+        io.github.slagyr/gherclj    {:git/tag "v1.3.0" :git/sha "9c3bb1d"}}
+
+ :tasks
+ {spec          {:doc  "Run speclj specs (pass file/dir to narrow)"
+                 :task (if (seq *command-line-args*)
+                         (apply shell "clojure" "-M:spec" *command-line-args*)
+                         (shell "clojure" "-M:spec"))}
+
+  ci            {:doc  "Run all spec + non-wip features"
+                 :task (do (shell "clojure" "-M:spec")
+                           (shell "clojure" "-M:features"))}
+
+  features      {:doc  "Run gherclj feature specs (excludes @slow and @wip)"
+                 :task (do
+                         (run 'clean)
+                         (apply shell "clojure" "-M:features"
+                           *command-line-args*))}
+
+  clean         {:doc  "Remove generated and test artifacts"
+                 :task (do (babashka.fs/delete-tree "target")
+                           (println "Cleaned target/"))}
+
+  lint          {:doc      "Run clj-kondo lint (default: src spec; pass file/dir to narrow)"
+                 :requires ([babashka.pods :as pods])
+                 :task     (do
+                             (pods/load-pod 'clj-kondo/clj-kondo "2024.03.13")
+                             (let [run! (requiring-resolve 'pod.borkdude.clj-kondo/run!)
+                                   targets (if (seq *command-line-args*)
+                                             (vec *command-line-args*)
+                                             ["src" "spec"])
+                                   result (run! {:lint targets})
+                                   {:keys [error warning]} (:summary result)]
+                               (doseq [{:keys [filename row col level message]} (:findings result)]
+                                 (println (str filename ":" row ":" col ": " (name level) ": " message)))
+                               (println (str "clj-kondo: " error " error(s), " warning " warning(s)"))
+                               (when (pos? error)
+                                 (System/exit 1))))}
+
+  hooks:install {:doc  "Configure git to use repo-tracked hooks"
+                 :task (shell "git" "config" "core.hooksPath" ".githooks")}}}
