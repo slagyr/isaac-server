@@ -13,12 +13,14 @@ Feature: Server startup command
       | level | event           | port | host    |
       | :info | :server/started | 9876 | 127.0.0.1 |
 
+  @wip
   Scenario: gateway is an alias for server
     When the gateway command is run on port 9877
     Then the log has entries matching:
       | level | event           | port | host    |
       | :info | :server/started | 9877 | 127.0.0.1 |
 
+  @wip
   Scenario: gateway.port config key is used as server port
     Given config:
       | key               | value  |

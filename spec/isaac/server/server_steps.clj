@@ -779,16 +779,8 @@
 
 ;; region ----- Routing -----
 
-(defgiven "default Grover setup" isaac.server.server-steps/default-grover-setup
-  "In-memory state dir at target/test-state plus grover provider, echo model,
-   and main crew with soul 'You are Atticus.' on disk.")
-
-(defgiven "config:" isaac.server.server-steps/configure
-  "Sets server-config entries via dot-path keys (e.g. server.port,
-    acp.proxy-transport). Special-cases log.output: 'memory' routes
-    log output to the captured-entries atom; anything else becomes a
-    log file. Also persists entries to <root>/.isaac/config/isaac.edn.
-    A value of '#delete' removes that key instead of writing the string.")
+;; default Grover setup + config: — isaac.session.session-steps (agent spec).
+;; Server feature classpath includes ../isaac-agent/spec.
 
 (defwhen "the isaac EDN file {path:string} is removed" isaac.server.server-steps/isaac-edn-file-removed
   "Deletes the EDN file at <root>/.isaac/<path> and fires a config-change
