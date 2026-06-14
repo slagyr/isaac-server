@@ -498,35 +498,38 @@
     (nexus/-with-nested-nexus {:fs fs* :root (:root handler-opts)}
       ((server-http/create-handler handler-opts) request))))
 
-(defn get-request [path]
+(defn- use-direct-http? []
   (let [port (g/get :server-port)
-        resp (if (pos? (long (or port 0)))
-               @(http/get (str (request-base-url) path))
+        host (or (get-in (current-server-config) [:server :host]) "127.0.0.1")]
+    (or (not (pos? (long (or port 0))))
+        (contains? #{"::1" "0:0:0:0:0:0:0:1"} host))))
+
+(defn get-request [path]
+  (let [resp (if (use-direct-http?)
                (direct-response {:request-method :get
                                  :uri            path
-                                 :headers        {}}))]
+                                 :headers        {}})
+               @(http/get (str (request-base-url) path)))]
     (g/assoc! :http-response resp)))
 
 (defn get-request-with-headers [path table]
-  (let [port    (g/get :server-port)
-        rows    (table->kv-rows table)
+  (let [rows    (table->kv-rows table)
         headers (extract-headers rows)
-        resp    (if (pos? (long (or port 0)))
-                  @(http/get (str (request-base-url) path) {:headers headers})
+        resp    (if (use-direct-http?)
                   (direct-response {:request-method :get
                                     :uri            path
-                                    :headers        (direct-headers headers)}))]
+                                    :headers        (direct-headers headers)})
+                  @(http/get (str (request-base-url) path) {:headers headers}))]
     (g/assoc! :http-response resp)))
 
 (defn get-request-with-header [path header]
-  (let [port            (g/get :server-port)
-        [name value]    (str/split header #":\s*" 2)
-        headers         {name value}
-        resp            (if (pos? (long (or port 0)))
-                          @(http/get (str (request-base-url) path) {:headers headers})
-                          (direct-response {:request-method :get
-                                            :uri            path
-                                            :headers        (direct-headers headers)}))]
+  (let [[name value] (str/split header #":\s*" 2)
+        headers      {name value}
+        resp         (if (use-direct-http?)
+                       (direct-response {:request-method :get
+                                         :uri            path
+                                         :headers        (direct-headers headers)})
+                       @(http/get (str (request-base-url) path) {:headers headers}))]
     (g/assoc! :http-response resp)))
 
 (defn post-request [path table]
@@ -640,16 +643,20 @@
   (with-server-fs
     (fn []
       (let [fs*           (server-fs)
+            root          (runtime-root-dir)
             cfg           (merge (load-server-config (g/get :root) fs*)
                                  (when-let [providers (g/get :provider-configs)]
                                    {:providers providers}))
-            root     (runtime-root-dir)
-            session-store (store/create root)]
+            session-store (or (store/registered-store)
+                              (store/create root))]
         (nexus/-with-nexus {:config    (atom cfg)
-                            :root root
+                            :root      root
                             :fs        fs*
                             :sessions  {:store session-store}}
-          (hail-router/tick! {:cfg cfg :session-store session-store}))))))
+          (config/dangerously-install-config! cfg "feature: hail router tick")
+          (hail-router/tick! {:cfg           cfg
+                              :root          root
+                              :session-store session-store}))))))
 
 (defn- record-turn-future! [futures]
   (if-let [future* (first futures)]
@@ -662,15 +669,18 @@
   (with-server-fs
     (fn []
       (let [fs*           (server-fs)
+            root          (runtime-root-dir)
             cfg           (current-server-config)
-            root     (runtime-root-dir)
-            session-store (store/create root)]
+            session-store (or (store/registered-store)
+                              (store/create root))]
         (nexus/-with-nexus {:config    (atom cfg)
-                            :root root
+                            :root      root
                             :fs        fs*
                             :sessions  {:store session-store}}
-          (config/dangerously-install-config! cfg "spec")
-          (record-turn-future! (hail-delivery-worker/tick! {:cfg cfg :session-store session-store})))))))
+          (config/dangerously-install-config! cfg "feature: hail delivery tick")
+          (record-turn-future! (hail-delivery-worker/tick! {:cfg           cfg
+                                                            :root          root
+                                                            :session-store session-store})))))))
 
 (defn hail-delivery-worker-ticks-at [iso]
   (g/assoc! :isaac-file-phase :assert)
@@ -678,15 +688,17 @@
   (with-server-fs
     (fn []
       (let [fs*           (server-fs)
+            root          (runtime-root-dir)
             cfg           (current-server-config)
-            root     (runtime-root-dir)
-            session-store (store/create root)]
+            session-store (or (store/registered-store)
+                              (store/create root))]
         (nexus/-with-nexus {:config    (atom cfg)
-                            :root root
+                            :root      root
                             :fs        fs*
                             :sessions  {:store session-store}}
-          (config/dangerously-install-config! cfg "spec")
+          (config/dangerously-install-config! cfg "feature: hail delivery tick")
           (record-turn-future! (hail-delivery-worker/tick! {:cfg           cfg
+                                                            :root          root
                                                             :now           (java.time.Instant/parse iso)
                                                             :session-store session-store})))))))
 

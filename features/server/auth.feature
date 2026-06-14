@@ -57,7 +57,6 @@ Feature: Server-wide inbound HTTP auth
     When the client sends GET "/status"
     Then the response status is 401
 
-  @wip
   Scenario: IPv6 loopback bind is treated the same as 127.0.0.1
     Given config:
       | server.host | ::1 |
