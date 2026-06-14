@@ -27,7 +27,7 @@
 
 (defn- manifest-paths []
   ["resources/isaac-manifest.edn"
-   "modules/isaac.agent/resources/isaac-manifest.edn"
+   "../isaac-agent/resources/isaac-manifest.edn"
    "modules/isaac.hail/resources/isaac-manifest.edn"
    "modules/isaac.hooks/resources/isaac-manifest.edn"
    "modules/isaac.cron/resources/isaac-manifest.edn"

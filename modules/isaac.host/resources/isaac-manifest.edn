@@ -2,11 +2,6 @@
  :version "0.1.0",
  :builtin? true,
  :factory isaac.host.module/create-module,
- :isaac/cli
- {:logs
-  {:usage "logs [options]",
-   :summary "Tail and colorize the Isaac log file",
-   :namespace isaac.logs.cli}},
  :isaac.config/schema
  {:acp
   {:schema

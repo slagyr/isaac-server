@@ -238,34 +238,34 @@
    :builtin? true
    :factory  'isaac.agent.module/create-module
 
-   :berths  {:isaac.server/tools             {:description "LLM tool factories."
+   :berths  {:isaac.agent/tools             {:description "LLM tool factories."
                                               :schema      {:type       :map
                                                             :key-spec   {:type :keyword}
                                                             :value-spec {:type    :map
                                                                          :factory 'isaac.tool.registry/register-tool-entry!
                                                                          :schema  {:factory {:type :symbol :validations [:present?]}}}}}
-             :isaac.server/llm-api           {:description "LLM API factories."
+             :isaac.agent/llm-api           {:description "LLM API factories."
                                               :schema      {:type       :map
                                                             :key-spec   {:type :keyword}
                                                             :value-spec {:type    :map
                                                                          :factory 'isaac.llm.api.protocol/register-api-entry!
                                                                          :schema  {:factory {:type :symbol :validations [:present?]}}}}}
-             :isaac.server/slash-commands    {:description "Slash commands."
+             :isaac.agent/slash-commands    {:description "Slash commands."
                                               :schema      {:type       :map
                                                             :key-spec   {:type :keyword}
                                                             :value-spec {:type    :map
                                                                          :factory 'isaac.slash.registry/register-slash-entry!
                                                                          :schema  {:factory {:type :symbol :validations [:present?]}}}}}
-             :isaac.server/provider-template {:description "Provider templates."
+             :isaac.agent/provider-template {:description "Provider templates."
                                               :schema      {:type       :map
                                                             :key-spec   {:type :keyword}
                                                             :value-spec {:type   :map
                                                                          :schema {:template {:type :map}}}}}
-             :isaac.server/provider          {:description "Materialized providers."
+             :isaac.agent/provider          {:description "Materialized providers."
                                               :schema      {:type       :map
                                                             :key-spec   {:type :keyword}
                                                             :value-spec {:type :map}}}
-             :isaac.server/comm              {:description "Communication channels."
+             :isaac.agent/comm              {:description "Communication channels."
                                               :schema      {:type       :map
                                                             :key-spec   {:type :keyword}
                                                             :value-spec {:type    :map
@@ -273,32 +273,32 @@
                                                                                    :extra-schema  {:type :schema-map}
                                                                                    :configurable? {:type :boolean}}}}}}
 
-   :isaac.server/llm-api {(keyword helm-api)   {:factory 'isaac.llm.api.grover/make}
+   :isaac.agent/llm-api {(keyword helm-api)   {:factory 'isaac.llm.api.grover/make}
                           (keyword sky-api)    {:factory 'isaac.llm.api.grover/make}
                           (keyword groves-api) {:factory 'isaac.llm.api.grover/make}
                           (keyword anvil-api)  {:factory 'isaac.llm.api.grover/make}
                           (keyword grover-api) {:factory 'isaac.llm.api.grover/make}}
 
-   :isaac.server/provider-template {(keyword helm-systems)  {:template (dissoc helm-provider :api-key)}
+   :isaac.agent/provider-template {(keyword helm-systems)  {:template (dissoc helm-provider :api-key)}
                                     (keyword starcore)      {:template (dissoc starcore-provider :api-key)}
                                     (keyword flicker-labs)  {:template flicker-provider}
                                     (keyword quantum-anvil) {:template quantum-provider}
                                     (keyword grover-stub)   {:template {:api grover-api :auth "none"}}}
 
-   :isaac.server/tools {(keyword spyglass-tool) {:factory 'isaac.tool.builtin/read-tool-factory}
+   :isaac.agent/tools {(keyword spyglass-tool) {:factory 'isaac.tool.builtin/read-tool-factory}
                         (keyword sextant-tool)  {:factory 'isaac.tool.builtin/grep-tool-factory}
                         (keyword signal-flare)  {:factory 'isaac.tool.builtin/web-search-tool-factory}}
 
-   :isaac.server/slash-commands {(keyword heading-command) {:factory 'isaac.marigold/heading-slash-factory}
+   :isaac.agent/slash-commands {(keyword heading-command) {:factory 'isaac.marigold/heading-slash-factory}
                                  (keyword bearing-command) {:factory 'isaac.marigold/bearing-slash-factory}
                                  (keyword muster-command)  {:factory 'isaac.marigold/muster-slash-factory}}
 
-   :isaac.server/comm {(keyword longwave) {:namespace 'isaac.marigold-comms}
+   :isaac.agent/comm {(keyword longwave) {:namespace 'isaac.marigold-comms}
                        (keyword skybeam)  {:namespace 'isaac.marigold-comms}
                        (keyword logbook)  {:namespace 'isaac.marigold-comms}}
 
    :isaac.config/schema (select-keys config-schema/contributions agent-schema-keys)
-   :isaac.config/check  check-contributions/checks})
+   :isaac.config/check  check-contributions/server})
 
 (def baseline-server-manifest
   "HTTP host manifest — route berth, server/service CLI, and :server schema."

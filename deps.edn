@@ -1,7 +1,7 @@
 {:paths ["src" "resources"]
 
  :deps {io.github.slagyr/isaac-foundation {:local/root "../isaac-foundation"}
-        isaac.agent/isaac.agent           {:local/root "modules/isaac.agent"}
+        io.github.slagyr/isaac-agent        {:local/root "../isaac-agent"}
         isaac.hail/isaac.hail             {:local/root "modules/isaac.hail"}
         isaac.hooks/isaac.hooks           {:local/root "modules/isaac.hooks"}
         isaac.cron/isaac.cron             {:local/root "modules/isaac.cron"}
