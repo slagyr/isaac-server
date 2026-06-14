@@ -15,7 +15,8 @@ registries, session store, …) that `isaac.server.app` wires during boot.
 
 - `src/isaac/server/*` — HTTP server, routes, boot orchestration, CLI
 - `src/isaac/*` — host runtime the server orchestrates (config lifecycle, comm,
-  hail, cron, hooks, session store, …)
+  hail, hooks, session store, …)
+- `features/cron/` — cron integration features (implementation in isaac-cron)
 - `resources/isaac-manifest.edn` — builtin `:isaac.server` module manifest
 - `spec-support/` — test fixtures (`isaac.marigold`, step helpers) exported as
   `io.github.slagyr/isaac-server-test-support`

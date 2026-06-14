@@ -4,7 +4,7 @@
         io.github.slagyr/isaac-agent        {:local/root "../isaac-agent"}
         isaac.hail/isaac.hail             {:local/root "modules/isaac.hail"}
         isaac.hooks/isaac.hooks           {:local/root "modules/isaac.hooks"}
-        isaac.cron/isaac.cron             {:local/root "modules/isaac.cron"}
+        io.github.slagyr/isaac-cron         {:local/root "../isaac-cron"}
         isaac.host/isaac.host             {:local/root "modules/isaac.host"}
         cheshire/cheshire                 {:mvn/version "5.13.0"}
         clj-commons/clj-yaml              {:mvn/version "1.0.29"}
