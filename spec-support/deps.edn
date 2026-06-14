@@ -1,5 +1,6 @@
 {:paths ["src"]
- :deps  {io.github.slagyr/isaac-foundation-test-support {:local/root "../../isaac-foundation/spec-support"}
-         speclj/speclj            {:mvn/version "3.13.0"}
-         babashka/process         {:mvn/version "0.5.22"}
-         io.github.slagyr/gherclj {:git/tag "v1.3.0" :git/sha "9c3bb1d"}}}
+ :deps  {io.github.slagyr/isaac-foundation-test-support {:git/url "https://github.com/slagyr/isaac-foundation.git"
+                                                         :git/tag "v0.1.0"
+ :git/sha "535ce491e45875ac97bf97a4b2306def7bb82a7c"
+                                                         :deps/root "spec-support"}
+         speclj/speclj                                  {:mvn/version "3.13.0"}}}
