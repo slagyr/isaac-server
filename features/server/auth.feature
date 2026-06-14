@@ -1,7 +1,7 @@
 Feature: Server-wide inbound HTTP auth
   Every inbound HTTP request goes through one shared bearer-token
   middleware. The token lives at `:server :auth :token`. Webhook hooks,
-  ACP/gateway WebSocket upgrades, and direct routes all authenticate
+  ACP WebSocket upgrades, and direct routes all authenticate
   through the same gate.
 
   If `:server :auth :token` is configured, the token is enforced on

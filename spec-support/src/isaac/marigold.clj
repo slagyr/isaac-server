@@ -338,10 +338,6 @@
   {:id :isaac.cron :version "0.1.0" :builtin? true :factory 'isaac.cron.module/create-module
    :isaac.config/schema (select-keys config-schema/contributions [:cron])})
 
-(def baseline-host-manifest
-  {:id :isaac.host :version "0.1.0" :builtin? true :factory 'isaac.host.module/create-module
-   :isaac.config/schema (select-keys config-schema/contributions [:acp :gateway])})
-
 (def baseline-manifest baseline-server-manifest)
 
 (def ^:private baseline-foundation-index
@@ -350,8 +346,7 @@
    :isaac.agent      {:coord {} :manifest baseline-agent-manifest :path nil}
    :isaac.hail       {:coord {} :manifest baseline-hail-manifest :path nil}
    :isaac.hooks      {:coord {} :manifest baseline-hooks-manifest :path nil}
-   :isaac.cron       {:coord {} :manifest baseline-cron-manifest :path nil}
-   :isaac.host       {:coord {} :manifest baseline-host-manifest :path nil}})
+   :isaac.cron       {:coord {} :manifest baseline-cron-manifest :path nil}})
 
 (defn- reset-extension-registries! []
   ;; Each registry (api factories, comm registry, tool registry, slash

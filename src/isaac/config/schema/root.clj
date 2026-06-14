@@ -27,10 +27,8 @@
 ;; region ----- Entity Schemas (manifest views) -----
 
 (def defaults (table :defaults))
-(def acp (table :acp))
 (def server (table :server))
 (def sessions (table :sessions))
-(def gateway (table :gateway))
 (def hail (table :hail))
 (def hooks (table :hooks))
 (def slash-commands (table :slash-commands))

@@ -25,12 +25,7 @@
 
     (it "registers the server command"
       (module-loader/process-manifest-berths! (module-loader/builtin-index))
-      (should-not-be-nil (registry/get-command "server")))
-
-    (it "registers gateway as an alias for server via main resolve-alias"
-      (require 'isaac.main)
-      (let [resolve (ns-resolve 'isaac.main 'resolve-alias)]
-        (should= ["server" "--port" "3000"] (resolve ["gateway" "--port" "3000"])))))
+      (should-not-be-nil (registry/get-command "server"))))
 
   (describe "run"
 

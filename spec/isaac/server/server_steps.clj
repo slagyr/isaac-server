@@ -432,8 +432,7 @@
   (let [arg-parts (remove str/blank? (str/split args #"\s+" 2))]
     (run-cli-with-stubbed-config! (into ["server"] arg-parts))))
 
-(defn gateway-command-run [port]
-  (run-cli-with-stubbed-config! ["gateway" "--port" (str port)]))
+
 
 ;; endregion ^^^^^ Server Commands ^^^^^
 
@@ -841,7 +840,7 @@
 
 (defwhen "the isaac config is reloaded" isaac.server.server-steps/config-reloaded)
 
-(defwhen "the gateway command is run on port {port:int}" isaac.server.server-steps/gateway-command-run)
+
 
 (defwhen #"a GET request is made to \"([^\"]+)\"$" isaac.server.server-steps/get-request)
 

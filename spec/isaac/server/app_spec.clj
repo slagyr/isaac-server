@@ -57,7 +57,7 @@
       (with-redefs [httpkit/run-server   (fn [_ opts] (reset! bound (:port opts)) (fn [] nil))
                     httpkit/server-port  (fn [_] @bound)
                     httpkit/server-stop! (fn [_] nil)]
-        (sut/start! {:cfg {:gateway {:port 8888}}})
+        (sut/start! {:cfg {:server {:port 8888 :auth {:token "s3cr3t"}}}})
         (sut/stop!))
       (should= 8888 @bound)))
 
