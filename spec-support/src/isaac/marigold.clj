@@ -223,7 +223,9 @@
                                  :schema      {:type       :map
                                                :key-spec   {:type :keyword}
                                                :value-spec {:type :map
-                                                            :schema {:fn {:type :symbol :validations [:present?]}}}}}}})
+                                                            :schema {:fn {:type :symbol :validations [:present?]}}}}}}
+
+   :isaac.config/schema (select-keys config-schema/contributions [:tz])})
 
 (def ^:private agent-schema-keys
   #{:command-paths :comms :crew :defaults :models :prefer-entity-files
@@ -333,7 +335,7 @@
 
 (def baseline-cron-manifest
   {:id :isaac.cron :version "0.1.0" :builtin? true :factory 'isaac.cron.module/create-module
-   :isaac.config/schema (select-keys config-schema/contributions [:cron :tz])})
+   :isaac.config/schema (select-keys config-schema/contributions [:cron])})
 
 (def baseline-host-manifest
   {:id :isaac.host :version "0.1.0" :builtin? true :factory 'isaac.host.module/create-module
