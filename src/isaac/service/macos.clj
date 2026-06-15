@@ -4,7 +4,7 @@
     [isaac.fs :as fs]
     [isaac.config.root :as root]
     [isaac.nexus :as nexus]
-    [isaac.util.shell :as shell]))
+    [isaac.shell :as shell]))
 
 (defn- runtime-fs [opts] (fs/instance opts))
 

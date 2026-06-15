@@ -5,7 +5,7 @@
     [clojure.tools.cli :as tools-cli]
     [isaac.cli.registry :as cli]
     [isaac.service.macos :as macos]
-    [isaac.util.shell :as shell]))
+    [isaac.shell :as shell]))
 
 (def ^:private install-options
   [[nil "--bb-bin PATH" "Path to bb binary (default: resolved via which)"]
