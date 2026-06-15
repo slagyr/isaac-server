@@ -108,8 +108,24 @@
   (helper/await-condition #(nil? (live-instance name)) 5000)
   (g/should-be-nil (live-instance name)))
 
+(defn- write-grover-defaults! [root]
+  (let [cfg-root (str root "/config")
+        fs*      (or (g/get :mem-fs) (nexus/get :fs) (fs/real-fs))]
+    (fs/mkdirs fs* cfg-root)
+    (fs/mkdirs fs* (str cfg-root "/models"))
+    (fs/mkdirs fs* (str cfg-root "/providers"))
+    (fs/mkdirs fs* (str cfg-root "/crew"))
+    (fs/spit   fs* (str cfg-root "/isaac.edn")
+                    (pr-str {:defaults {:crew "main" :model "grover"}}))
+    (fs/spit   fs* (str cfg-root "/models/grover.edn")
+                    (pr-str {:model "echo" :provider :grover :context-window 32768}))
+    (fs/spit   fs* (str cfg-root "/providers/grover.edn") (pr-str {}))
+    (fs/spit   fs* (str cfg-root "/crew/main.edn")
+                    (pr-str {:model :grover :soul "You are Atticus."}))))
+
 (defn default-grover-setup []
   (froot/initialize-root! "target/test-state" true)
+  (write-grover-defaults! (g/get :root))
   (g/update! :server-config #(merge (or % {}) {:server {:hot-reload true}})))
 
 (defn- deep-merge [a b]
