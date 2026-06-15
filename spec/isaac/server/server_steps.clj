@@ -317,7 +317,8 @@
                              disc    (nexus/-with-nested-nexus {:fs fs*}
                                        (module-loader/discover! merged {:root runtime-state
                                                                         :cwd       (System/getProperty "user.dir")}))]
-                               (assoc merged :module-index (:index disc)))
+                               (assoc merged :module-index (merge (:index disc)
+                                                                  (:inject-module-index merged))))
         cfg            (srv-config/server-config cfg-map)
         ;; For synthetic default homes, feature steps notify config changes
         ;; explicitly, so a memory-backed source is deterministic and cheap.

@@ -16,7 +16,12 @@
                                                :value-spec {:type    :map
                                                             :schema  {:namespace     {:type :symbol :validations [:present?]}
                                                                       :extra-schema  {:type :schema-map}
-                                                                      :configurable? {:type :boolean}}}}}}
+                                                                      :configurable? {:type :boolean}}}}}
+             :isaac.server/service {:description "Runtime services (Discord client, delivery workers, …). Manifest contributions are inert factory data ({:namespace …} whose load implements isaac.service.factory/create for that id). Gathered at config load (CLI-safe); only the server boot instantiates and starts them, in module topological order."
+                                    :schema      {:type       :map
+                                                  :key-spec   {:type :keyword}
+                                                  :value-spec {:type    :map
+                                                               :schema  {:namespace {:type :symbol :validations [:present?]}}}}}}
 
  :isaac/cli {:server  {:usage     "server [options]"
                        :summary   "Start the Isaac HTTP server"

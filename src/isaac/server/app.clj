@@ -14,6 +14,7 @@
     [isaac.logger :as log]
     [isaac.module.loader :as module-loader]
     [isaac.scheduler.runtime :as scheduler-core]
+    [isaac.service.runtime :as service-runtime]
     [isaac.nexus :as nexus]
     [isaac.server.http :as http]
     [org.httpkit.server :as httpkit]))
@@ -197,6 +198,7 @@
             ;; register-route-extensions! pass.
             _                       (module-loader/process-manifest-berths! module-index)
             _                       (module-loader/start-modules! module-index)
+            _                       (service-runtime/start-all! module-index)
             _                       (runtime/install-config-berths! {:config cfg :module-index module-index})
             config-source           (start-config-source opts hot-reload? root)
             _                       (some-> config-source runtime/start!)
@@ -216,6 +218,7 @@
       (worker/stop! delivery))
     (stop-optional-service! 'isaac.hail.delivery-worker/stop! hail-delivery)
     (stop-optional-service! 'isaac.hail.router/stop! hail-router)
+    (service-runtime/stop-all!)
     (module-loader/shutdown-modules!)
     (when scheduler
       (scheduler-core/shutdown! scheduler))
