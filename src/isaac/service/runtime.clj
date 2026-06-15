@@ -53,6 +53,9 @@
         (reset! started* @started)
         :started
         (catch Throwable t
+          ;; started* is only committed on the happy path; sync the partial
+          ;; progress so stop-all! can unwind services already started.
+          (reset! started* @started)
           (stop-all!)
           (throw t))))))
 
