@@ -1,0 +1,22 @@
+{:id       :isaac.agent.schema-ownership
+ :version  "0.0.0"
+ :builtin? true
+ :factory  isaac.module.protocol/module
+ :description "Test-only schema fragments so configurator ownership specs see agent-owned entity collections on the server classpath."
+
+ :isaac.config/schema
+ {:crew      {:schema {:name           "crew table"
+                       :type           :map
+                       :snapshot-only? true
+                       :key-spec       {:type :string}
+                       :value-spec     {:name :crew :type :map :schema {}}}}
+  :models    {:schema {:name           "model table"
+                       :type           :map
+                       :snapshot-only? true
+                       :key-spec       {:type :string}
+                       :value-spec     {:name :model :type :map :schema {}}}}
+  :providers {:schema {:name           "provider table"
+                       :type           :map
+                       :snapshot-only? true
+                       :key-spec       {:type :string}
+                       :value-spec     {:name :provider :type :map :schema {}}}}}}
