@@ -93,7 +93,7 @@
          (keep (fn [[slot slice]]
                  (when (map? slice)
                    (let [impl     (configurator/slot-impl slot slice)
-                         lazy?    (some #(get-in % [:manifest :isaac.agent/comm (keyword (configurator/->name impl))])
+                         lazy?    (some #(get-in % [:manifest :isaac.server/comm (keyword (configurator/->name impl))])
                                         (vals mod-index))
                          slot-pth (dotted-path (conj (vec path) slot))]
                      (when (and impl (not lazy?) (not (comm-registry/registered? impl)))

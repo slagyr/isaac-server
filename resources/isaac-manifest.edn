@@ -9,7 +9,14 @@
                                                        :factory isaac.server.routes/register-route-entry!
                                                        :schema  {:method  {:type :keyword :validations [:present?]}
                                                                  :path    {:type :string :validations [:present?]}
-                                                                 :handler {:type :symbol :validations [:present?]}}}}}}
+                                                                 :handler {:type :symbol :validations [:present?]}}}}}
+             :isaac.server/comm {:description "Communication channels (Discord, iMessage, ACP, …). Manifest contributions name available impls and carry the impl's :namespace (whose load implements isaac.comm.factory/create for that :type) plus its :extra-schema (extension fields composed into [:comms] slots of that :type). User-instantiated comm slots in the [:comms] config slot also count toward this berth, so `[:registered-in? :isaac.server/comm [:comms]]` accepts both manifest impl ids (the common :type values) and slot ids."
+                                 :schema      {:type       :map
+                                               :key-spec   {:type :keyword}
+                                               :value-spec {:type    :map
+                                                            :schema  {:namespace     {:type :symbol :validations [:present?]}
+                                                                      :extra-schema  {:type :schema-map}
+                                                                      :configurable? {:type :boolean}}}}}}
 
  :isaac/cli {:server  {:usage     "server [options]"
                        :summary   "Start the Isaac HTTP server"

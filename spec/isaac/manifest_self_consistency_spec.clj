@@ -44,7 +44,7 @@
 
   (it "the server manifest only declares server-owned berths and CLI commands"
     (let [manifest (read-manifest "resources/isaac-manifest.edn")]
-      (should= #{:isaac.server/route} (set (keys (:berths manifest))))
+      (should= #{:isaac.server/route :isaac.server/comm} (set (keys (:berths manifest))))
       (should= #{:server :service} (set (keys (:isaac/cli manifest))))
       (should= #{:server} (set (keys (:isaac.config/schema manifest))))))
 

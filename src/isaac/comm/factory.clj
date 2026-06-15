@@ -1,5 +1,5 @@
 (ns isaac.comm.factory
-  "The :isaac.agent/comm config berth's factory. Comm modules
+  "The :isaac.server/comm config berth's factory. Comm modules
    contribute data only ({:namespace … :extra-schema …}); instantiation
    attaches in code by implementing the `create` multimethod, keyed by
    impl id. The berth machinery calls `create!` per configured slot and
@@ -27,7 +27,7 @@
 
 (defn- contribution [module-index impl-key]
   (some (fn [[module-id entry]]
-          (when-let [contribution (get-in entry [:manifest :isaac.agent/comm impl-key])]
+          (when-let [contribution (get-in entry [:manifest :isaac.server/comm impl-key])]
             [module-id contribution]))
         module-index))
 
@@ -57,7 +57,7 @@
         :failed))))
 
 (defn create!
-  "Per-slot factory for the :isaac.agent/comm config berth. Resolves
+  "Per-slot factory for the :isaac.server/comm config berth. Resolves
    the impl's `create` method (loading the contributing module on first
    use), preferring a programmatically registered constructor
    (isaac.api/register-comm-factory!). Returns nil — leaving the slot
