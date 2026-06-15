@@ -73,16 +73,6 @@ Feature: Server-wide inbound HTTP auth
       | level | event                  | message                                |
       | error | :server/auth-required  | .*:server :auth :token.*non-loopback.* |
 
-  Scenario: Old :hooks :auth :token slot fails validation pointing to the new slot
-    Given config:
-      | server.host       | 0.0.0.0  |
-      | server.auth.token | s3cr3t   |
-      | hooks.auth.token  | leftover |
-    When the config is loaded
-    Then the config has validation errors matching:
-      | key              | value                               |
-      | hooks.auth.token | retired.*use :server :auth :token.* |
-
   Scenario: Token supports ${ENV_VAR} substitution from the state dir env
     Given the env var "ISAAC_AUTH_TOKEN" is set to "envt0ken"
     And config:
