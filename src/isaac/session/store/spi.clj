@@ -99,15 +99,16 @@
    :jsonl-edn-index   — file store with single combined index"
   ([root] (create root default-impl))
   ([root impl]
-    (when-not (contains? @factories* impl)
-      ;; Lazy-load the impl ns if no caller has loaded it yet. The impl's
-      ;; load triggers a self-registration into factories*.
-      (when-let [ns-sym (get impl->ns impl)]
-        (require ns-sym)))
     (let [factory (or (get @factories* impl)
-                      (throw (ex-info (str "no session store factory for impl " impl)
-                                      {:impl impl :registered (vec (sort (keys @factories*)))})))]
-      (factory root))))
+                      (when-let [ns-sym (get impl->ns impl)]
+                        ;; Lazy-load the impl ns only when no test/runtime
+                        ;; factory was registered first.
+                        (require ns-sym)
+                        (get @factories* impl)))]
+      (if factory
+        (factory root)
+        (throw (ex-info (str "no session store factory for impl " impl)
+                        {:impl impl :registered (vec (sort (keys @factories*)))}))))))
 
 (defn- name->id
   "Convert a display name to a session ID slug, matching the store's key format."

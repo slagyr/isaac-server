@@ -9,6 +9,7 @@
     [isaac.config.server-config :as srv-config]
     [isaac.foundation.fs-steps :as ffs]
     [isaac.foundation.root-steps :as froot]
+    [isaac.server.test-store]
     [isaac.server.cli :as server]
     [isaac.module.loader :as module-loader]
     [isaac.session.store.spi :as store]
