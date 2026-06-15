@@ -6,17 +6,17 @@
  :tasks
  {spec          {:doc  "Run speclj specs (pass file/dir to narrow)"
                  :task (if (seq *command-line-args*)
-                         (apply shell "clojure" "-M:spec" *command-line-args*)
-                         (shell "clojure" "-M:spec"))}
+                         (apply shell "clojure" "-M:test:spec" *command-line-args*)
+                         (shell "clojure" "-M:test:spec"))}
 
   ci            {:doc  "Run all spec + non-wip features"
-                 :task (do (shell "clojure" "-M:spec")
-                           (shell "clojure" "-M:features"))}
+                 :task (do (shell "clojure" "-M:test:spec")
+                           (shell "clojure" "-M:test:features"))}
 
   features      {:doc  "Run gherclj feature specs (excludes @slow and @wip)"
                  :task (do
                          (run 'clean)
-                         (apply shell "clojure" "-M:features"
+                         (apply shell "clojure" "-M:test:features"
                            *command-line-args*))}
 
   clean         {:doc  "Remove generated and test artifacts"

@@ -37,6 +37,14 @@ bb features   # gherclj server acceptance tests
 bb ci         # both
 ```
 
+From the JVM, compose `:test` with a runner alias (shared test deps live in
+`:test` only):
+
+```sh
+clj -M:test:spec       # speclj specs
+clj -M:test:features   # gherclj acceptance tests
+```
+
 ## Consumer coordinate
 
 ```clojure
