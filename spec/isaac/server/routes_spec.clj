@@ -2,8 +2,6 @@
   (:require
     [isaac.comm.registry :as comm-registry]
     [isaac.fs :as fs]
-    [isaac.hooks]
-    [isaac.module.loader :as module-loader]
     [isaac.server.routes :as sut]
     [isaac.nexus :as nexus]
     [speclj.core :refer :all]))
@@ -13,6 +11,9 @@
 
 (defn post-handler [request]
   {:body request :status 202})
+
+(defn webhook-test-handler [request]
+  {:status 204 :body request})
 
 (describe "Routes"
 
@@ -32,7 +33,6 @@
     (sut/register-route! :post "/thingy" #'post-handler)
     (let [request {:request-method :post :uri "/thingy" :body "payload"}
           opts    {:cfg {:mode :test}}]
-      ;; the handler threads the server's config into the request as a value
       (should= {:status 202 :body (assoc request :config {:mode :test})}
                (sut/handler opts request))))
 
@@ -40,21 +40,13 @@
     (let [response (sut/handler {:request-method :get :uri "/status"})]
       (should= 200 (:status response))))
 
-  (it "registers the hooks route from the hooks manifest's :isaac.server/route berth"
-    ;; Phase 5 of brth (isaac-8v1n): routes flow through
-    ;; process-manifest-berths!. Phase 5b (isaac-v5js) folded
-    ;; route-prefix into route — the hooks contribution is now a
-    ;; clout `/hooks/*` pattern with :method :*, so the matched
-    ;; suffix lands at :route-params {:* "bibelot"}.
-    (with-redefs [isaac.hooks/handler (fn [request]
-                                        {:status 204 :body request})]
-      (module-loader/clear-activations!)
-      (let [request {:request-method :post :uri "/hooks/bibelot"}
-            opts    {:cfg {:mode :test}}]
-        (module-loader/process-manifest-berths! (module-loader/builtin-index))
-        (should= {:status 204
-                  :body   (assoc request :config {:mode :test} :route-params {:* "bibelot"})}
-                 (sut/handler opts request)))))
+  (it "dispatches wildcard webhook routes registered at runtime"
+    (sut/register-route! :* "/hooks/*" #'webhook-test-handler)
+    (let [request {:request-method :post :uri "/hooks/bibelot"}
+          opts    {:cfg {:mode :test}}]
+      (should= {:status 204
+                :body   (assoc request :config {:mode :test} :route-params {:* "bibelot"})}
+               (sut/handler opts request))))
 
   (it "returns 404 for unknown paths"
     (let [response (sut/handler {:request-method :get :uri "/unknown"})]

@@ -6,7 +6,6 @@
     [isaac.config.validation]
     [isaac.schema.meta]
     [isaac.schema.registered-in]
-    [isaac.session.compaction-schema :as compaction-schema]
     [clojure.java.io :as io]
     [speclj.core :refer :all]))
 
@@ -54,20 +53,14 @@
       (should (map? schema))
       (should-not-throw (isaac.schema.meta/conform-spec! schema))))
 
-  (it "the embedded compaction schemas stay aligned with isaac.session.compaction-schema"
-    (let [contributions (schema-contributions)]
-      (doseq [path [[:crew :schema :value-spec :schema :compaction :schema]
-                    [:models :schema :value-spec :schema :compaction :schema]
-                    [:defaults :schema :schema :compaction :schema]]]
-        (should= compaction-schema/config-schema (get-in contributions path)))))
-
   (it "no config path is claimed twice — one schema owner per path (berth :config XOR :isaac.config/schema factory)"
     (let [paths (berths/config-paths (module-loader/builtin-index))]
       (should= [] (->> paths frequencies (keep (fn [[p n]] (when (> n 1) p))) vec))))
 
-  (it "resolves every symbol the manifest references (factories, handlers, check :fns, cli namespaces, bootstrap)"
-    (doseq [manifest (builtin-manifests)]
-      (doseq [sym (distinct (manifest-symbols manifest))]
-        (if (namespace sym)
-          (should-not-be-nil (requiring-resolve sym))   ; ns/var reference
-          (should-not-throw (require sym)))))))          ; bare namespace (e.g. :cli :namespace)
+  (it "resolves every symbol the server manifest references"
+    (let [manifest (read-manifest "resources/isaac-manifest.edn")]
+      (doseq [sym (distinct (manifest-symbols manifest))
+              :when (namespace sym)]
+        (should-not-be-nil (requiring-resolve sym)))))
+
+  )

@@ -4,29 +4,16 @@
     [clojure.edn :as edn]
     [clojure.string :as str]
     [gherclj.core :as g :refer [defgiven defwhen defthen helper!]]
-    [isaac.config.api :as config]
     [isaac.config.loader :as loader]
-    [isaac.config.resolve :as resolve]
     [isaac.config.runtime :as runtime]
+    [isaac.config.server-config :as srv-config]
     [isaac.foundation.fs-steps :as ffs]
     [isaac.foundation.root-steps :as froot]
-    [isaac.session.store.memory :as memory-store]
     [isaac.server.cli :as server]
-    [isaac.hail.delivery-worker :as hail-delivery-worker]
-    [isaac.hail.router :as hail-router]
-    [isaac.scheduler.cron :as cron]
     [isaac.module.loader :as module-loader]
-    [isaac.cron.service :as cron-service]
     [isaac.session.store.spi :as store]
-    [isaac.comm.protocol :as comm]
-    [isaac.comm.delivery.worker :as worker]
     [isaac.comm.registry :as comm-registry]
-    [isaac.bridge.status :as bridge-status]
-    [isaac.config.root :as root]
-    [isaac.scheduler.runtime :as scheduler-core]
-    [isaac.slash.registry :as slash-registry]
     [isaac.nexus :as nexus]
-    [isaac.step-tables :as match]
     [isaac.fs :as fs]
     [isaac.logger :as log]
     [isaac.main :as main]
@@ -36,10 +23,7 @@
     [isaac.server.routes :as routes]
     [org.httpkit.client :as http]
     [org.httpkit.server :as httpkit]
-    [taoensso.timbre :as timbre])
-  (:import
-    (java.time ZonedDateTime)
-    (java.time.format DateTimeFormatter)))
+    [taoensso.timbre :as timbre]))
 
 (helper! isaac.server.server-steps)
 
@@ -61,37 +45,9 @@
 (froot/register-root-setup-hook!
   (fn [abs-dir]
     (reset! comm-registry/*registry* (comm-registry/fresh-registry))
-    (store/register-store! (memory-store/create-store abs-dir))))
-
-(defn- grover-root-dir []
-  (or (g/get :runtime-root-dir) (g/get :root)))
-
-(defn- grover-mem-fs []
-  (or (g/get :mem-fs) (nexus/get :fs) (fs/real-fs)))
-
-(defn- with-grover-fs [f]
-  (nexus/-with-nested-nexus {:fs (grover-mem-fs)}
-    (f)))
-
-(defn- write-grover-defaults! []
-  (let [root (str (grover-root-dir) "/config")
-        fs*  (grover-mem-fs)]
-    (fs/mkdirs fs* root)
-    (fs/spit fs* (str root "/isaac.edn")
-             (pr-str {:defaults {:crew "main" :model "grover"}}))
-    (fs/mkdirs fs* (str root "/models"))
-    (fs/mkdirs fs* (str root "/providers"))
-    (fs/mkdirs fs* (str root "/crew"))
-    (fs/spit fs* (str root "/models/grover.edn")
-             (pr-str {:model "echo" :provider :grover :context-window 32768}))
-    (fs/spit fs* (str root "/providers/grover.edn") (pr-str {}))
-    (fs/spit fs* (str root "/crew/main.edn")
-             (pr-str {:model :grover :soul "You are Atticus."}))
-    (g/dissoc! :feature-config)))
-
-(defn default-grover-setup []
-  (froot/initialize-root! "target/test-state" true)
-  (with-grover-fs write-grover-defaults!))
+    (when-let [create-store (try (requiring-resolve 'isaac.session.store.memory/create-store)
+                                 (catch Throwable _ nil))]
+      (store/register-store! (create-store abs-dir)))))
 
 (defn- parse-config-value [value]
   (cond
@@ -134,9 +90,6 @@
                          (if (map? parent)
                            (assoc-in m parent-path (dissoc parent leaf))
                            m))))
-
-(def ^:private offset-formatter
-  (DateTimeFormatter/ofPattern "yyyy-MM-dd'T'HH:mm:ssZ"))
 
 (defn- config-rows [table]
   (cond-> (:rows table)
@@ -354,7 +307,7 @@
                              (g/assoc! :root virtual-home))
                            virtual-home))
         runtime-state  home
-        server-config  (let [fs*     (server-fs)
+        cfg-map        (let [fs*     (server-fs)
                              base    (with-server-fs #(load-server-config home fs*))
                              merged  (deep-merge base
                                                  (merge (or (g/get :server-config) {})
@@ -364,7 +317,7 @@
                                        (module-loader/discover! merged {:root runtime-state
                                                                         :cwd       (System/getProperty "user.dir")}))]
                                (assoc merged :module-index (:index disc)))
-        cfg            (resolve/server-config server-config)
+        cfg            (srv-config/server-config cfg-map)
         ;; For synthetic default homes, feature steps notify config changes
         ;; explicitly, so a memory-backed source is deterministic and cheap.
         ;; Real root scenarios keep the real watcher path when hot reload
@@ -375,7 +328,7 @@
                            (runtime/watch-service-source home)))
         _              (g/assoc! :config-change-source config-source)
         run-server?    (not (false? (g/get :bind-server-port?)))
-        start-opts     {:cfg                  server-config
+        start-opts     {:cfg                  cfg-map
                          :config-change-source config-source
                          :dev                  (= "true" (loader/env "ISAAC_DEV"))
                          :fs                   (server-fs)
@@ -384,12 +337,12 @@
                          ;; otherwise bind ephemerally so suites never collide with a
                          ;; live isaac on the default port.
                          :port                 (if run-server?
-                                                 (or (get-in server-config [:server :port]) 0)
+                                                 (or (get-in cfg-map [:server :port]) 0)
                                                  0)
                          :root            runtime-state
                         :start-http-server?   run-server?}]
     (g/assoc! :runtime-root-dir runtime-state)
-    (g/assoc! :server-handler-opts {:cfg-fn    (fn [] (or (some-> app/state deref :cfg deref) server-config))
+    (g/assoc! :server-handler-opts {:cfg-fn    (fn [] (or (some-> app/state deref :cfg deref) cfg-map))
                                     :root runtime-state
                                     :home      home})
     (when-let [{:keys [port]} (app/start! start-opts)]
@@ -554,164 +507,6 @@
         (when-let [fut (fut-fn)]
           (g/assoc! :turn-future fut))))))
 
-(defn- scheduler-idle? [instance]
-  (every? (fn [task]
-            (and (nil? (:active-run task))
-                 (empty? (:pending-fire-ats task))))
-          (scheduler-core/list-tasks instance)))
-
-(defn- invoke-scheduled-cron-tasks! [scheduler now]
-  (doseq [{:keys [handler trigger]} (scheduler-core/list-tasks scheduler)]
-    (let [zone         (java.time.ZoneId/of (or (:zone trigger) (str (.getZone now))))
-          scheduled-at (cron/previous-fire-at (:expr trigger) now zone)]
-      (when scheduled-at
-        (handler {:scheduled-at (.toInstant scheduled-at)
-                  :now          (.toInstant now)})))))
-
-(defn scheduler-ticks-at [iso]
-  (g/assoc! :isaac-file-phase :assert)
-  (g/assoc! :runtime-root-dir (g/get :root))
-  (with-server-fs
-    (fn []
-      (let [fs*        (server-fs)
-            cfg        (merge (load-server-config (g/get :root) fs*)
-                              (when-let [providers (g/get :provider-configs)]
-                                {:providers providers}))
-            now        (ZonedDateTime/parse iso offset-formatter)
-            scheduler  (scheduler-core/create {:clock (fn [] (.toInstant now))})]
-        (try
-          (nexus/-with-nexus {:config    (atom cfg)
-                               :scheduler scheduler
-                               :root (runtime-root-dir)
-                               :fs        fs*
-                               :sessions  {:store (store/create (runtime-root-dir))}}
-            (let [runner (cron-service/start! {:cfg cfg :root (runtime-root-dir)})]
-              (try
-                (invoke-scheduled-cron-tasks! scheduler now)
-                (helper/await-condition #(scheduler-idle? scheduler) 3000)
-                (finally
-                  (cron-service/stop! runner)))))
-          (finally
-            (scheduler-core/shutdown! scheduler)))))))
-
-(deftype StubComm []
-  comm/Comm
-  (on-turn-start [_ _ _] nil)
-  (on-text-chunk [_ _ _] nil)
-  (on-tool-call [_ _ _] nil)
-  (on-tool-cancel [_ _ _] nil)
-  (on-tool-result [_ _ _ _] nil)
-  (on-compaction-start [_ _ _] nil)
-  (on-compaction-success [_ _ _] nil)
-  (on-compaction-failure [_ _ _] nil)
-  (on-compaction-disabled [_ _ _] nil)
-  (on-turn-end [_ _ _] nil)
-  (send! [_ record]
-    (g/update! :stub-comm-calls #(conj (or % []) record))
-    (or (g/get :stub-comm-result) {:ok true})))
-
-(defn- with-stub-comm [root f]
-  (let [reg (assoc (comm-registry/fresh-registry) :instances {"stub" (->StubComm)})]
-    (binding [comm-registry/*registry* (atom reg)
-              root/*root*         root]
-      (f))))
-
-(defn delivery-worker-ticks []
-  (g/assoc! :isaac-file-phase :assert)
-  (g/assoc! :runtime-root-dir (g/get :root))
-  (with-server-fs
-    (fn []
-      (with-stub-comm (runtime-root-dir)
-        (fn []
-          (nexus/-with-nexus {:root (runtime-root-dir) :fs (server-fs)}
-            (worker/tick! {})))))))
-
-(defn delivery-worker-ticks-at [iso]
-  (g/assoc! :isaac-file-phase :assert)
-  (g/assoc! :runtime-root-dir (g/get :root))
-  (with-server-fs
-    (fn []
-      (with-stub-comm (runtime-root-dir)
-        (fn []
-          (nexus/-with-nexus {:root (runtime-root-dir) :fs (server-fs)}
-            (worker/tick! {:now (java.time.Instant/parse iso)})))))))
-
-(defn hail-router-ticks []
-  (g/assoc! :isaac-file-phase :assert)
-  (g/assoc! :runtime-root-dir (g/get :root))
-  (with-server-fs
-    (fn []
-      (let [fs*           (server-fs)
-            root          (runtime-root-dir)
-            cfg           (merge (load-server-config (g/get :root) fs*)
-                                 (when-let [providers (g/get :provider-configs)]
-                                   {:providers providers}))
-            session-store (or (store/registered-store)
-                              (store/create root))]
-        (nexus/-with-nexus {:config    (atom cfg)
-                            :root      root
-                            :fs        fs*
-                            :sessions  {:store session-store}}
-          (config/dangerously-install-config! cfg "feature: hail router tick")
-          (hail-router/tick! {:cfg           cfg
-                              :root          root
-                              :session-store session-store}))))))
-
-(defn- record-turn-future! [futures]
-  (if-let [future* (first futures)]
-    (g/assoc! :turn-future future*)
-    (g/dissoc! :turn-future)))
-
-(defn hail-delivery-worker-ticks []
-  (g/assoc! :isaac-file-phase :assert)
-  (g/assoc! :runtime-root-dir (g/get :root))
-  (with-server-fs
-    (fn []
-      (let [fs*           (server-fs)
-            root          (runtime-root-dir)
-            cfg           (current-server-config)
-            session-store (or (store/registered-store)
-                              (store/create root))]
-        (nexus/-with-nexus {:config    (atom cfg)
-                            :root      root
-                            :fs        fs*
-                            :sessions  {:store session-store}}
-          (config/dangerously-install-config! cfg "feature: hail delivery tick")
-          (record-turn-future! (hail-delivery-worker/tick! {:cfg           cfg
-                                                            :root          root
-                                                            :session-store session-store})))))))
-
-(defn hail-delivery-worker-ticks-at [iso]
-  (g/assoc! :isaac-file-phase :assert)
-  (g/assoc! :runtime-root-dir (g/get :root))
-  (with-server-fs
-    (fn []
-      (let [fs*           (server-fs)
-            root          (runtime-root-dir)
-            cfg           (current-server-config)
-            session-store (or (store/registered-store)
-                              (store/create root))]
-        (nexus/-with-nexus {:config    (atom cfg)
-                            :root      root
-                            :fs        fs*
-                            :sessions  {:store session-store}}
-          (config/dangerously-install-config! cfg "feature: hail delivery tick")
-          (record-turn-future! (hail-delivery-worker/tick! {:cfg           cfg
-                                                            :root          root
-                                                            :now           (java.time.Instant/parse iso)
-                                                            :session-store session-store})))))))
-
-(defn comm-stub-returns [_comm-name table]
-  (let [headers (:headers table)
-        row     (first (:rows table))
-        result  (into {} (map #(vector (keyword %1) (parse-config-value %2)) headers row))]
-    (g/assoc! :stub-comm-result result)))
-
-(defn comm-stub-was-called-with [_comm-name table]
-  (let [calls  (or (g/get :stub-comm-calls) [])
-        result (match/match-entries table calls)]
-    (g/should= [] (:failures result))))
-
 (defn response-status [code]
   (let [resp   (g/get :http-response)
         status (:status resp)]
@@ -776,22 +571,13 @@
     2000)
   (g/should (some (fn [entry] (= :config/reloaded (:event entry))) (log/get-entries))))
 
-(defn available-slash-commands-include [table]
-  (let [commands (slash-registry/all-commands (:module-index (or (loader/snapshot "spec") {})))
-        headers  (:headers table)]
-    (doseq [row (:rows table)]
-      (let [expected (zipmap headers row)
-            matched? (some (fn [entry]
-                             (every? (fn [[k v]] (= v (get entry (keyword k)))) expected))
-                           commands)]
-        (g/should matched?)))))
-
 ;; endregion ^^^^^ Log Assertions ^^^^^
 
 ;; region ----- Routing -----
 
-;; default Grover setup + config: — isaac.session.session-steps (agent spec).
-;; Server feature classpath includes ../isaac-agent/spec.
+(defgiven "config:" isaac.server.server-steps/configure
+  "Applies server harness settings from a key/value table (log.output,
+   server.* keys, bind-server-port).")
 
 (defwhen "the isaac EDN file {path:string} is removed" isaac.server.server-steps/isaac-edn-file-removed
   "Deletes the EDN file at <root>/.isaac/<path> and fires a config-change
@@ -852,39 +638,6 @@
 
 (defwhen #"a POST request is made to \"([^\"]+)\":" isaac.server.server-steps/post-request)
 
-(defwhen #"the scheduler ticks at \"([^\"]+)\"" isaac.server.server-steps/scheduler-ticks-at
-  "Schedules configured cron jobs on the shared scheduler, then invokes
-   their registered handlers at the given ISO timestamp. Flips
-   :isaac-file-phase to :assert so subsequent 'the EDN isaac file X
-   contains:' steps read/assert instead of write.")
-
-(defwhen "the delivery worker ticks" isaac.server.server-steps/delivery-worker-ticks
-  "Invokes worker/tick! once with the comm stub. Flips
-   :isaac-file-phase to :assert so subsequent file-contains steps
-   read/assert. For time-sensitive scheduling, use 'ticks at' variant.")
-
-(defwhen #"the delivery worker ticks at \"([^\"]+)\"" isaac.server.server-steps/delivery-worker-ticks-at)
-
-(defwhen "the hail router ticks" isaac.server.server-steps/hail-router-ticks
-  "Invokes hail-router/tick! once against the current on-disk hail and
-   session state. Flips :isaac-file-phase to :assert so follow-up file
-   assertions read/assert instead of write.")
-
-(defwhen "the hail delivery worker ticks" isaac.server.server-steps/hail-delivery-worker-ticks
-  "Invokes hail-delivery-worker/tick! once against the current hail and
-   session state, capturing the launched background future for later
-   'the turn ends on session ...' coordination.")
-
-(defwhen #"the hail delivery worker ticks at \"([^\"]+)\"" isaac.server.server-steps/hail-delivery-worker-ticks-at)
-
-(defgiven #"the comm \"([^\"]+)\" returns:" isaac.server.server-steps/comm-stub-returns
-  "Configures the StubComm return value for all subsequent send! calls.
-   Horizontal single-row table: columns are result map keys (ok, transient?, etc.).")
-
-(defthen #"the comm \"([^\"]+)\" was called with:" isaac.server.server-steps/comm-stub-was-called-with
-  "Asserts the StubComm received at least one send! call whose record
-   matches all fields in the horizontal table (target, content, etc.).")
-
 (defthen "the response status is {code:int}" isaac.server.server-steps/response-status)
 
 (defthen #"the response header \"([^\"]+)\" matches \"([^\"]+)\"" isaac.server.server-steps/response-header-matches)
@@ -894,7 +647,5 @@
 (defthen "the response body has {key:string} equal to {value:string}" isaac.server.server-steps/response-body-key-equals)
 
 (defthen "the response body has a {key:string} key" isaac.server.server-steps/response-body-has-key)
-
-(defthen "the available slash commands include:" isaac.server.server-steps/available-slash-commands-include)
 
 ;; endregion ^^^^^ Routing ^^^^^

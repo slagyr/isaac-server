@@ -3,12 +3,10 @@
      [c3kit.apron.refresh :as refresh]
      [isaac.config.runtime :as runtime]
      [isaac.fs :as fs]
-     [isaac.cron.service :as cron-service]
      [isaac.comm.delivery.worker :as worker]
-     [isaac.hail.delivery-worker :as hail-delivery-worker]
-     [isaac.hail.router :as hail-router]
      [isaac.logger :as log]
-     [isaac.marigold :as marigold]
+     [isaac.marigold-server :as marigold-server]
+     [isaac.server.test-store]
      [isaac.module.loader :as module-loader]
      [isaac.scheduler.runtime :as scheduler-core]
      [isaac.server.app :as sut]
@@ -19,7 +17,7 @@
 
 (describe "Server app"
 
-  (marigold/with-manifest)
+  (marigold-server/with-manifest)
   (helper/with-captured-logs)
 
   ;; Default stubs so each test boots in microseconds, not seconds. The
@@ -32,11 +30,7 @@
   (redefs-around [runtime/watch-service-source (fn [_] nil)
                   httpkit/run-server          (fn [_ _] (fn [] nil))
                   httpkit/server-port         (fn [_] 7001)
-                  httpkit/server-stop!        (fn [_] nil)
-                  hail-delivery-worker/start! (fn [_] ::hail-delivery-worker)
-                  hail-delivery-worker/stop!  (fn [_] nil)
-                  hail-router/start!          (fn [_] ::hail-router)
-                  hail-router/stop!           (fn [_] nil)])
+                  httpkit/server-stop!        (fn [_] nil)])
 
   (after (sut/stop!))
 
@@ -116,25 +110,6 @@
       (should= "127.0.0.1" (:host entry))
       (should= 7001 (:port entry))))
 
-  (it "starts the cron scheduler when cron jobs are configured"
-    (let [started (atom nil)]
-      (with-redefs [httpkit/run-server   (fn [_ _] (fn [] nil))
-                    httpkit/server-port  (fn [_] 7001)
-                    httpkit/server-stop! (fn [_] nil)
-                    cron-service/start!  (fn [opts]
-                                            (reset! started opts)
-                                            ::scheduler)
-                    cron-service/stop!   (fn [_] nil)]
-        (sut/start! {:host      "127.0.0.1"
-                     :port      0
-                     :root "/tmp/isaac"
-                     :cfg       {:cron {"health-check" {:expr "0 9 * * *"}}}})
-        (sut/stop!))
-      (should= {:cfg       {:cron      {"health-check" {:expr "0 9 * * *"}}
-                            :root "/tmp/isaac"}
-                :root "/tmp/isaac"}
-               @started)))
-
   (it "processes route berth contributions from every declared module at startup"
     (let [seen-indexes (atom [])]
       (with-redefs [httpkit/run-server                  (fn [_ _] (fn [] nil))
@@ -175,21 +150,6 @@
       (should (contains? @started :isaac.foundation))
       (should (contains? @started :isaac.fake.pigeon))))
 
-  (it "stops the cron scheduler with the server"
-    (let [stopped (atom nil)]
-      (with-redefs [httpkit/run-server   (fn [_ _] (fn [] nil))
-                    httpkit/server-port  (fn [_] 7001)
-                    httpkit/server-stop! (fn [_] nil)
-                    cron-service/start!  (fn [_] ::scheduler)
-                    cron-service/stop!   (fn [scheduler]
-                                            (reset! stopped scheduler))]
-        (sut/start! {:host      "127.0.0.1"
-                     :port      0
-                     :root "/tmp/isaac"
-                     :cfg       {:cron {"health-check" {:expr "0 9 * * *"}}}})
-        (sut/stop!))
-      (should= ::scheduler @stopped)))
-
   (it "starts the delivery worker when the server has a state dir"
     (let [started (atom nil)]
       (with-redefs [httpkit/run-server       (fn [_ _] (fn [] nil))
@@ -201,46 +161,6 @@
                     worker/start!            (fn [opts]
                                                (reset! started opts)
                                                ::worker)]
-        (sut/start! {:host      "127.0.0.1"
-                     :port      0
-                     :root "/tmp/isaac"
-                     :cfg       {}})
-        (sut/stop!))
-      (should= {} @started)))
-
-  (it "starts the hail router when the server has a state dir"
-    (let [started (atom nil)]
-      (with-redefs [httpkit/run-server       (fn [_ _] (fn [] nil))
-                    httpkit/server-port      (fn [_] 7001)
-                    httpkit/server-stop!     (fn [_] nil)
-                    scheduler-core/create    (fn [_] ::scheduler)
-                    scheduler-core/start!    identity
-                    scheduler-core/shutdown! (fn [_] nil)
-                    worker/start!            (fn [_] ::worker)
-                    hail-delivery-worker/start! (fn [_] ::hail-delivery-worker)
-                    hail-router/start!       (fn [opts]
-                                               (reset! started opts)
-                                               ::hail-router)]
-        (sut/start! {:host      "127.0.0.1"
-                     :port      0
-                     :root "/tmp/isaac"
-                     :cfg       {}})
-        (sut/stop!))
-      (should= {} @started)))
-
-  (it "starts the hail delivery worker when the server has a state dir"
-    (let [started (atom nil)]
-      (with-redefs [httpkit/run-server           (fn [_ _] (fn [] nil))
-                    httpkit/server-port          (fn [_] 7001)
-                    httpkit/server-stop!         (fn [_] nil)
-                    scheduler-core/create        (fn [_] ::scheduler)
-                    scheduler-core/start!        identity
-                    scheduler-core/shutdown!     (fn [_] nil)
-                    worker/start!                (fn [_] ::worker)
-                    hail-delivery-worker/start!  (fn [opts]
-                                                   (reset! started opts)
-                                                   ::hail-delivery-worker)
-                    hail-router/start!           (fn [_] ::hail-router)]
         (sut/start! {:host      "127.0.0.1"
                      :port      0
                      :root "/tmp/isaac"
@@ -284,8 +204,7 @@
     (let [started (atom nil)]
       (with-redefs [runtime/validate-config! (fn [_ _] [{:key "server.port" :value "bad"}])
                     httpkit/run-server    (fn [& _] (reset! started :http))
-                    worker/start!         (fn [& _] (reset! started :worker))
-                    cron-service/start!   (fn [& _] (reset! started :cron))]
+                    worker/start!         (fn [& _] (reset! started :worker))]
         (should= nil (sut/start! {:cfg {:server {:port 6674}}}))
         (should= nil @started)
         (should-not (sut/running?)))))
@@ -336,26 +255,6 @@
                      :cfg       {}})
         (sut/stop!))
        (should= ::worker @stopped)))
-
-  (it "stops the hail router with the server"
-    (let [stopped (atom nil)]
-      (with-redefs [httpkit/run-server       (fn [_ _] (fn [] nil))
-                    httpkit/server-port      (fn [_] 7001)
-                    httpkit/server-stop!     (fn [_] nil)
-                    scheduler-core/create    (fn [_] ::scheduler)
-                    scheduler-core/start!    identity
-                    scheduler-core/shutdown! (fn [_] nil)
-                    worker/start!            (fn [_] ::worker)
-                    worker/stop!             (fn [_] nil)
-                    hail-router/start!       (fn [_] ::hail-router)
-                    hail-router/stop!        (fn [runner]
-                                               (reset! stopped runner))]
-        (sut/start! {:host      "127.0.0.1"
-                     :port      0
-                     :root "/tmp/isaac"
-                     :cfg       {}})
-        (sut/stop!))
-      (should= ::hail-router @stopped)))
 
   (it "shuts down the shared scheduler with the server"
     (let [stopped (atom nil)]
@@ -435,56 +334,5 @@
         (sut/start! {:host "127.0.0.1" :port 0 :config-change-source ::source})
         (sut/stop!))
       (should= ::source @stopped)))
-
-  (it "reloads the in-memory config when the config source publishes a change"
-    (let [source (runtime/memory-source marigold/root)
-          helm   (keyword marigold/helm-systems)
-          crew   marigold/captain]
-      (nexus/-with-nested-nexus {:fs (fs/mem-fs)}
-        (marigold/write-crew! crew {:model :grover :soul "old"})
-        (marigold/write-model! :grover (marigold/model-cfg helm "echo" :context-window 32768))
-        (marigold/write-provider! helm {:api marigold/helm-api})
-        (with-redefs [httpkit/run-server   (fn [_ _] (fn [] nil))
-                      httpkit/server-port  (fn [_] 7001)
-                      httpkit/server-stop! (fn [_] nil)]
-          (sut/start! {:cfg                  {:crew {crew {:model "grover" :soul "old"}}
-                                               :models {"grover" (marigold/model-cfg marigold/helm-systems "echo" :context-window 32768)}
-                                               :providers {marigold/helm-systems {:api marigold/helm-api}}}
-                        :config-change-source source
-                        :host                 "127.0.0.1"
-                        :root            (str marigold/home "/.isaac")
-                        :port                 0})
-          (marigold/write-crew! crew {:model :grover :soul "new"})
-          (runtime/notify-path! source (str marigold/home "/.isaac/config/crew/" crew ".edn"))
-          (helper/await-condition #(= "new" (get-in (sut/current-config) [:crew crew :soul])))
-          (should= "new" (get-in (sut/current-config) [:crew crew :soul]))
-          (sut/stop!)))))
-
-  (it "preserves the previous config when reload fails validation"
-    (let [source     (runtime/memory-source marigold/root)
-          orig-poll  runtime/poll!
-          poll-count (atom 0)
-          poll-ready (promise)]
-      (nexus/-with-nested-nexus {:fs (fs/mem-fs)}
-        (marigold/write-model! :grover (marigold/model-cfg marigold/grover-api "echo" :context-window 32768))
-        (marigold/write-provider! :grover {:api marigold/grover-api})
-        (with-redefs [httpkit/run-server   (fn [_ _] (fn [] nil))
-                      httpkit/server-port  (fn [_] 7001)
-                      httpkit/server-stop! (fn [_] nil)
-                      runtime/poll!  (fn [s t]
-                                             (when (= 2 (swap! poll-count inc))
-                                               (deliver poll-ready true))
-                                             (orig-poll s t))]
-          (sut/start! {:cfg                  {:models {"grover" (marigold/model-cfg marigold/grover-api "echo" :context-window 32768)}
-                                               :providers {marigold/grover-api {:api marigold/grover-api}}}
-                       :config-change-source source
-                       :host                 "127.0.0.1"
-                       :root            (str marigold/home "/.isaac")
-                       :port                 0})
-          (marigold/write-model! :grover (marigold/model-cfg marigold/grover-api "" :context-window 32768))
-          (runtime/notify-path! source (str marigold/home "/.isaac/config/models/grover.edn"))
-          (deref poll-ready 1000 ::timeout)
-          (should= "echo" (get-in (sut/current-config) [:models "grover" :model]))
-          (sut/stop!)))))
 
   )

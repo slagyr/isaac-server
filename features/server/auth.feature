@@ -15,7 +15,7 @@ Feature: Server-wide inbound HTTP auth
   `::1`, etc.). Non-loopback bind without a token refuses to start.
 
   Background:
-    Given default Grover setup
+    Given an Isaac root at "target/test-state"
 
   Scenario: A request with the configured Bearer token reaches the handler
     Given config:
