@@ -196,10 +196,10 @@
             ;; Phase 5 of brth (isaac-8v1n): the :isaac.server/route
             ;; berth also flows through here, replacing the explicit
             ;; register-route-extensions! pass.
+            _                       (module-loader/reconcile-modules! module-index)
             _                       (module-loader/process-manifest-berths! module-index)
-            _                       (module-loader/start-modules! module-index)
-            _                       (runtime/install-config-berths! {:config cfg :module-index module-index})
             _                       (service-runtime/start-all! module-index)
+            _                       (runtime/install-config-berths! {:config cfg :module-index module-index})
             config-source           (start-config-source opts hot-reload? root)
             _                       (some-> config-source runtime/start!)
             reloader                (when (and config-source root)

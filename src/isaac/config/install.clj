@@ -15,6 +15,7 @@
     [isaac.comm.registry :as comm-registry]
     [isaac.config.configurator :as configurator]
     [isaac.logger :as log]
+    [isaac.module.loader :as module-loader]
     [isaac.session.store.spi :as store]))
 
 (defn- ensure-store! [config]
@@ -119,7 +120,7 @@
   [{:keys [root fs old-config comm-registry registries host path]}]
   (let [load-result (config/load-config-result {:root root :fs fs :raw-parse-errors? true})
         errors      (:errors load-result)
-        new-cfg     (assoc (:config load-result) :module-index (:module-index host))]
+        new-cfg     (:config load-result)]
     (cond
       (seq errors)
       (let [{:keys [error reason]} (reload-failure path errors)]
@@ -131,8 +132,11 @@
 
       :else
       (do
+        (when (:module-index new-cfg)
+          (module-loader/reconcile-modules! (:module-index new-cfg)))
         (config/set-snapshot! new-cfg "config hot reload")
-        (install! {:config new-cfg :old-config old-config :registries registries :host host})
-        (install-config-berths! {:config new-cfg :old-config old-config :module-index (:module-index host)})
+        (install! {:config new-cfg :old-config old-config :registries registries
+                   :host (assoc host :module-index (:module-index new-cfg))})
+        (install-config-berths! {:config new-cfg :old-config old-config :module-index (:module-index new-cfg)})
         (log/info :config/reloaded :path path)
         new-cfg))))
