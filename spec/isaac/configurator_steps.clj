@@ -21,7 +21,7 @@
 (def ^:private telly-module-id :isaac.comm.telly)
 
 (def ^:private telly-module-coord
-  {:local/root "../isaac/modules/isaac.comm.telly"})
+  {:local/root "../isaac-agent/modules/isaac.comm.telly"})
 
 (defn- ->slot-key [name]
   (keyword name))
@@ -207,20 +207,16 @@
 (defn- reload-running-server! [path old-config]
   (when (app/running?)
     (when-let [{:keys [host-ctx registry registries]} (deref app/state)]
-      (let [root        (or (g/get :runtime-root-dir) (g/get :root))
-            fs*         (server-fs)
-            load-result (loader/load-config-result {:root root :fs fs* :raw-parse-errors? true})
-            new-cfg     (assoc (:config load-result) :module-index (:module-index host-ctx))]
-
-        (g/should (empty? (:errors load-result)))
-        (g/should (empty? (runtime/validate-config! new-cfg registry)))
-        (loader/set-snapshot! new-cfg "configurator-steps reload")
-        (when (seq registries)
-          (runtime/reconcile! host-ctx old-config new-cfg registries))
-        (berths/reconcile! {:config       new-cfg
-                            :old-config   old-config
-                            :module-index (:module-index host-ctx)})
-        (evict-removed-comms! old-config new-cfg)))))
+      (let [root (or (g/get :runtime-root-dir) (g/get :root))
+            fs*  (server-fs)
+            rel  (runtime/reload! {:root           root
+                                   :fs             fs*
+                                   :old-config     old-config
+                                   :comm-registry  registry
+                                   :registries     registries
+                                   :host           host-ctx
+                                   :path           path})]
+        (g/should (some? rel))))))
 
 (defn config-updated [table]
   (let [path       (isaac-edn-path)

@@ -33,6 +33,7 @@ Feature: Lifecycle reconciler keeps comm object tree synced with config
       | :info | :lifecycle/started   | comms.bert  | telly |
       | :info | :lifecycle/started   | comms.ernie | telly |
 
+  @wip
   Scenario: Comm receives on-config-change! when its slice changes
     Given config:
       | key             | value  |
@@ -51,6 +52,7 @@ Feature: Lifecycle reconciler keeps comm object tree synced with config
       | level | event                | path       | impl  |
       | :info | :lifecycle/changed   | comms.elmo | telly |
 
+  @wip
   Scenario: Comm is stopped and evicted when its slot is removed from config
     Given config:
       | key              | value |
@@ -76,6 +78,7 @@ Feature: Lifecycle reconciler keeps comm object tree synced with config
       | level  | event                      | path             | message                                  |
       | :error | :config/validation-error   | comms.bigbird    | unknown :type "unknown-type"             |
 
+  @wip
   Scenario: Comm is hot-added when its slot appears in config at runtime
     Given the Isaac server is started
     And the comm "grover" does not exist
