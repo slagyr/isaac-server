@@ -13,6 +13,7 @@
     [isaac.server.cli :as server]
     [isaac.module.loader :as module-loader]
     [isaac.session.store.spi :as store]
+    [isaac.comm.factory :as comm-factory]
     [isaac.comm.registry :as comm-registry]
     [isaac.nexus :as nexus]
     [isaac.fs :as fs]
@@ -38,14 +39,14 @@
 ;; The foundation isaac-file write steps (moved to isaac.foundation.fs-steps)
 ;; fire post-write hooks; register the server-side config-change notification
 ;; so hot-reload scenarios still get notified when a config file is written.
-(ffs/register-post-write-hook!
-  (fn [path]
-    (when-let [source (g/get :config-change-source)]
-      (runtime/notify-path! source path))))
-
 (froot/register-root-setup-hook!
   (fn [abs-dir]
     (reset! comm-registry/*registry* (comm-registry/fresh-registry))
+    (when-let [ns-obj (find-ns 'isaac.comm.telly)]
+      (remove-ns (ns-name ns-obj))
+      (let [loaded-libs (var-get #'clojure.core/*loaded-libs*)]
+        (dosync (alter loaded-libs disj 'isaac.comm.telly)))
+      (remove-method comm-factory/create :telly))
     (when-let [create-store (try (requiring-resolve 'isaac.session.store.memory/create-store)
                                  (catch Throwable _ nil))]
       (store/register-store! (create-store abs-dir)))))
@@ -105,10 +106,32 @@
     (nexus/-with-nested-nexus {:fs fs*}
       (f))))
 
+(defn- sync-config-reload! [source]
+  (when (app/running?)
+    (let [{:keys [host-ctx registry registries]} @app/state
+          root (g/get :runtime-root-dir)]
+      (loop []
+        (when-let [rel (runtime/poll! source 0)]
+          (runtime/reload! {:root          root
+                            :fs            (server-fs)
+                            :old-config    (loader/snapshot "feature: reload old-config")
+                            :comm-registry registry
+                            :registries    registries
+                            :host          host-ctx
+                            :path          rel})
+          (recur))))))
+
+(ffs/register-post-write-hook!
+  (fn [path]
+    (when-let [source (g/get :config-change-source)]
+      (runtime/notify-path! source path)
+      (sync-config-reload! source))))
+
 (defn- notify-config-change! [path]
   (g/dissoc! :feature-config)
   (when-let [source (g/get :config-change-source)]
-    (runtime/notify-path! source path)))
+    (runtime/notify-path! source path)
+    (sync-config-reload! source)))
 
 (defn- isaac-root-path []
   (g/get :root))

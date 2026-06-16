@@ -25,9 +25,13 @@
    satisfies Reconfigurable)."
   (fn [node-path slice] (impl-id node-path slice)))
 
+(defn- manifest-comm-contribution [entry impl-key]
+  (or (get-in entry [:manifest :isaac.server/comm impl-key])
+      (get-in entry [:manifest :isaac.agent/comm impl-key])))
+
 (defn- contribution [module-index impl-key]
   (some (fn [[module-id entry]]
-          (when-let [contribution (get-in entry [:manifest :isaac.server/comm impl-key])]
+          (when-let [contribution (manifest-comm-contribution entry impl-key)]
             [module-id contribution]))
         module-index))
 

@@ -198,8 +198,8 @@
             ;; register-route-extensions! pass.
             _                       (module-loader/reconcile-modules! module-index)
             _                       (module-loader/process-manifest-berths! module-index)
-            _                       (service-runtime/start-all! module-index)
             _                       (runtime/install-config-berths! {:config cfg :module-index module-index})
+            _                       (service-runtime/start-all! module-index)
             config-source           (start-config-source opts hot-reload? root)
             _                       (some-> config-source runtime/start!)
             reloader                (when (and config-source root)

@@ -115,7 +115,7 @@
       (with-redefs [httpkit/run-server                  (fn [_ _] (fn [] nil))
                     httpkit/server-port                 (fn [_] 7001)
                     httpkit/server-stop!                (fn [_] nil)
-                    module-loader/reconcile-modules!        (fn [_] :started)
+                    module-loader/reconcile-modules!    (fn [_] :started)
                     module-loader/process-manifest-berths! (fn [module-index]
                                                              (swap! seen-indexes conj module-index)
                                                              [])]
@@ -139,8 +139,8 @@
                     httpkit/server-port          (fn [_] 7001)
                     httpkit/server-stop!         (fn [_] nil)
                     module-loader/reconcile-modules! (fn [module-index]
-                                                   (reset! started module-index)
-                                                   :started)]
+                                                       (reset! started module-index)
+                                                       :started)]
         (sut/start! {:host "127.0.0.1"
                      :port 0
                      :cfg  {:module-index
@@ -279,7 +279,7 @@
       (with-redefs [httpkit/run-server              (fn [_ _] (fn [] nil))
                     httpkit/server-port             (fn [_] 7001)
                     httpkit/server-stop!            (fn [_] nil)
-                    module-loader/reconcile-modules!    (fn [_] :started)
+                    module-loader/reconcile-modules! (fn [_] :started)
                     module-loader/shutdown-modules! (fn []
                                                      (swap! stopped inc)
                                                      :stopped)]
