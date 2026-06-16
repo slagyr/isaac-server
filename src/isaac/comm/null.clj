@@ -17,8 +17,9 @@
   (on-turn-end [_ _ _] nil)
   (send! [_ _] {:ok false :transient? false})
   reconfigurable/Reconfigurable
-  (on-startup! [_ _] nil)
-  (on-config-change! [_ _ _] nil))
+  (on-load [_ _] nil)
+  (on-config-change! [_ _ _] nil)
+  (on-unload [_ _] nil))
 
 (defn make [_host]
   (->NullComm))

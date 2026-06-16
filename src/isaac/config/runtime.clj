@@ -58,15 +58,21 @@
 
 (def Reconfigurable
   "Protocol implemented by config-driven components (comms, hail bands, hooks,
-   cron) so the reconciler can start/stop/update them: on-startup! /
-   on-config-change!. Canonical definition: isaac.reconfigurable."
+   cron) so the reconciler can start/stop/update them: on-load /
+   on-config-change! / on-unload. Canonical definition: isaac.reconfigurable."
   reconfigurable/Reconfigurable)
 
-(defn on-startup!
+(defn on-load
   "Reconfigurable method: called when an instance is first started with its
    config slice."
   [instance slice]
-  (reconfigurable/on-startup! instance slice))
+  (reconfigurable/on-load instance slice))
+
+(defn on-unload
+  "Reconfigurable method: called when an instance is evicted with its last
+   config slice."
+  [instance slice]
+  (reconfigurable/on-unload instance slice))
 
 (defn on-config-change!
   "Reconfigurable method: called on reload with the old and new config slices."

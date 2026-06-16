@@ -21,7 +21,7 @@
 (defmulti create
   "Instantiate the comm instance for a configured slot. Comm modules
    implement this for each impl id they contribute; the instance goes
-   in the nexus (and receives on-startup!/on-config-change! when it
+   in the nexus (and receives on-load/on-config-change!/on-unload when it
    satisfies Reconfigurable)."
   (fn [node-path slice] (impl-id node-path slice)))
 

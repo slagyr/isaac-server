@@ -187,7 +187,7 @@
             _                       (config/dangerously-install-config! cfg "server boot")
             _                       (runtime/install! {:config cfg :registries registries :host host-ctx})
             ;; isaac-8yxs: per-entry berth :factory invocation. Runs
-            ;; here (after config commit, before module on-startup) so
+            ;; here (after config commit, before module on-load) so
             ;; the berth registrations are in the nexus by the time
             ;; modules boot. Must run OUTSIDE loader/load-config-result's
             ;; nested-nexus wrap — that wrap restores the prior nexus

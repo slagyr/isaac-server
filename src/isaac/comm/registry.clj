@@ -41,7 +41,7 @@
 
 (defn register-instance!
   "Record the live Comm instance for `impl-name`. Called by the configurator
-   after on-startup! so the delivery worker can find it."
+   after on-load so the delivery worker can find it."
   [impl-name instance]
   (swap! *registry* assoc-in [:instances (->name impl-name)] instance))
 

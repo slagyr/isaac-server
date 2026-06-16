@@ -9,8 +9,9 @@
 
 ;; Protocol home is isaac.reconfigurable; aliased here for server-side callers.
 (def Reconfigurable reconfigurable/Reconfigurable)
-(def on-startup! reconfigurable/on-startup!)
+(def on-load reconfigurable/on-load)
 (def on-config-change! reconfigurable/on-config-change!)
+(def on-unload reconfigurable/on-unload)
 
 (defn ->name [x]
   (cond
@@ -37,13 +38,13 @@
 
 (defn- start-instance! [factory host path slice impl]
   (let [instance (factory (assoc host :name (last path)))]
-    (on-startup! instance slice)
+    (on-load instance slice)
     (nexus/register! path instance)
     (log/info :lifecycle/started :path (dotted path) :impl impl)
     instance))
 
 (defn- stop-instance! [instance path old-slice impl]
-  (on-config-change! instance old-slice nil)
+  (on-unload instance old-slice)
   (nexus/deregister! path)
   (log/info :lifecycle/stopped :path (dotted path) :impl impl))
 

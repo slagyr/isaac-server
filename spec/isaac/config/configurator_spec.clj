@@ -21,7 +21,8 @@
     (defn- recording-component []
       (let [events (atom [])]
         [events (reify sut/Reconfigurable
-                  (on-startup! [_ slice] (swap! events conj [:started slice]))
+                  (on-load [_ slice] (swap! events conj [:loaded slice]))
+                  (on-unload [_ slice] (swap! events conj [:unloaded slice]))
                   (on-config-change! [_ old new] (swap! events conj [:changed old new])))]))
 
     (it "starts a component when its slice appears"
@@ -30,7 +31,7 @@
         (log/capture-logs
           (sut/reconcile! {} nil {:cron {:nightly {:expr "0 0 * * *"}}} registry)
           (should= instance (nexus/get-in [:cron]))
-          (should= [[:started {:nightly {:expr "0 0 * * *"}}]] @events)
+          (should= [[:loaded {:nightly {:expr "0 0 * * *"}}]] @events)
           (should (some #(= :lifecycle/started (:event %)) @log/captured-logs)))))
 
     (it "delivers on-config-change! when the slice changes"
@@ -46,7 +47,7 @@
         (sut/reconcile! {} nil {:cron {:a {}}} registry)
         (sut/reconcile! {} {:cron {:a {}}} {} registry)
         (should-be-nil (nexus/get-in [:cron]))
-        (should= [:changed {:a {}} nil] (last @events))))
+        (should= [:unloaded {:a {}}] (last @events))))
 
     (it "ignores non-component registries — slot trees belong to the berth engine"
       (let [registry {:kind :slot-tree :path [:comms]}]

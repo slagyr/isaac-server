@@ -200,7 +200,7 @@
                   impl      (or (:type old-slice) (get old-slice "type") slot)]]
       (when inst
         (when (satisfies? reconfigurable/Reconfigurable inst)
-          (reconfigurable/on-config-change! inst old-slice nil))
+          (reconfigurable/on-unload inst old-slice))
         (nexus/deregister! path)
         (log/info :lifecycle/stopped :path (str "comms." (name slot)) :impl (name impl))))))
 

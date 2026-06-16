@@ -1,6 +1,6 @@
 Feature: Lifecycle reconciler keeps comm object tree synced with config
   The reconciler walks user-chosen slots under :comms in config, dispatches
-  factory + on-startup! when a slot appears, on-config-change! when its slice
+  factory + on-load when a slot appears, on-config-change! when its slice
   changes, and on-config-change! with new=nil when the slot is removed.
   Multiple slots with the same :type run as independent instances.
 
