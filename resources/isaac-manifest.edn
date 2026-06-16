@@ -41,4 +41,20 @@
                                   :host       {:type :string :description "Bind host"}
                                   :hot-reload {:type        :boolean
                                                :description "Enable config hot-reload watcher"}
-                                  :port       {:type :int :description "Bind port"}}}}}}
+                                  :port       {:type :int :description "Bind port"}}}}
+
+  :comms {:schema {:name        "comms table"
+                   :type        :map
+                   :description "Communication channel configurations (map of name -> comm config)"
+                   :key-spec    {:type :id}
+                   :value-spec  {:name           :comm
+                                 :type           :map
+                                 :factory        isaac.comm.factory/create!
+                                 :dynamic-schema {:berth :isaac.server/comm :path [:extra-schema]}
+                                 :schema         {:type {:type         :id
+                                                         :options-from :comms
+                                                         :description  "Manifest comm kind to instantiate"
+                                                         :validations  [[:registered-in? :isaac.server/comm [:comms]]]}
+                                                  :crew {:type        :id
+                                                         :description "Crew id this comm routes into"
+                                                         :validations [:crew-exists?]}}}}}}}

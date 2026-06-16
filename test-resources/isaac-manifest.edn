@@ -2,25 +2,10 @@
  :version  "0.0.0"
  :builtin? true
  :factory  isaac.module.protocol/module
- :description "Test-only schema fragments so configurator ownership specs see agent-owned entity collections on the server classpath."
+ :description "Test-only schema fragments so configurator ownership specs see snapshot-only entity collections on the server classpath."
 
  :isaac.config/schema
- {:comms     {:schema {:name        "comms table"
-                       :type        :map
-                       :description "Communication channel configurations (map of name -> comm config)"
-                       :key-spec    {:type :id}
-                       :value-spec  {:name           :comm
-                                     :type           :map
-                                     :factory        isaac.comm.factory/create!
-                                     :dynamic-schema {:berth :isaac.agent/comm :path [:extra-schema]}
-                                     :schema         {:type {:type         :id
-                                                             :options-from :comms
-                                                             :description  "Manifest comm kind to instantiate"
-                                                             :validations  [[:registered-in? :isaac.agent/comm [:comms]]]}
-                                                      :crew {:type        :id
-                                                             :description "Crew id this comm routes into"
-                                                             :validations [:crew-exists?]}}}}}
-  :crew      {:schema {:name           "crew table"
+ {:crew      {:schema {:name           "crew table"
                        :type           :map
                        :snapshot-only? true
                        :key-spec       {:type :string}
