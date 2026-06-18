@@ -49,7 +49,19 @@
           required  (when-not (get-method create impl-key)
                       (when-let [ns-sym (:namespace entry)]
                         (try
-                          (require ns-sym)
+                          ;; :reload, not a plain require. We only reach here
+                          ;; when create's defmethod is missing, so the entry
+                          ;; ns must re-run to install it. A load-once require
+                          ;; can't guarantee that: once a ns is in
+                          ;; *loaded-libs* require no-ops even though the
+                          ;; defmethod isn't there — e.g. an earlier load
+                          ;; threw partway (a module failing on first
+                          ;; activation), or the ns was removed without
+                          ;; clearing *loaded-libs*. Reloading re-evals the ns
+                          ;; and reinstalls the method, so activation is
+                          ;; idempotent and recoverable. Costs nothing once a
+                          ;; comm impl is live (the method is then present).
+                          (require ns-sym :reload)
                           nil
                           (catch Throwable t
                             (log/error :module/activation-failed

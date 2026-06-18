@@ -21,7 +21,7 @@
 (def ^:private telly-module-id :isaac.comm.telly)
 
 (def ^:private telly-module-coord
-  {:local/root "../isaac/modules/isaac.comm.telly"})
+  {:local/root "../isaac-agent/modules/isaac.comm.telly"})
 
 (defn- ->slot-key [name]
   (keyword name))
