@@ -24,6 +24,9 @@ jobs:
       - name: Check out isaac-foundation
         run: git clone --depth 1 https://github.com/slagyr/isaac-foundation.git ../isaac-foundation
 
+      - name: Check out isaac-agent (supplies the isaac.comm.telly test module)
+        run: git clone --depth 1 https://github.com/slagyr/isaac-agent.git ../isaac-agent
+
       - name: Set up Java
         uses: actions/setup-java@v4
         with:
