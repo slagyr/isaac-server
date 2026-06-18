@@ -265,7 +265,7 @@
                                        (assoc-in (or % {}) (config-path k) (parse-config-value (resolved-config-value v)))))
           (persist-config-entry! k v))))))
 
-;; isaac-edn-file-exists ("the EDN isaac file X exists with:") and
+;; isaac-edn-file-exists ("the isaac EDN file X exists with:") and
 ;; isaac-file-exists-with-content ("the isaac file X exists with:") moved to
 ;; isaac.foundation.fs-steps (write closure duplicated there).
 
@@ -562,7 +562,7 @@
         k    (keyword key)]
     (g/should-not-be-nil (get body k))))
 
-;; edn-isaac-file-contains ("the EDN isaac file X contains:") and
+;; isaac-file-edn-contains ("the isaac file X EDN contains:") and
 ;; edn-isaac-file-does-not-exist ("the isaac file X does not exist") moved to
 ;; isaac.foundation.fs-steps.
 
