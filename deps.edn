@@ -1,7 +1,7 @@
 {:paths ["src" "resources"]
 
  :deps  {io.github.slagyr/isaac-foundation {:git/url "https://github.com/slagyr/isaac-foundation.git"
-                                            :git/tag "v0.1.0" :git/sha "3cc82a1a682ec123f1edbd9aca4835db56bb70b2"}
+                                            :git/tag "v0.1.0" :git/sha "55db89d7aaa5e639ed3cc91fc5548cd1bd5a28b7"}
          cheshire/cheshire                 {:mvn/version "5.13.0"}
          clj-commons/clj-yaml              {:mvn/version "1.0.29"}
          clout/clout                       {:mvn/version "1.1.0"}
@@ -23,10 +23,12 @@
                                                                         :exclusions [io.github.slagyr/isaac]}
                             org.clojure/data.xml                       {:mvn/version "0.0.8"}
                             marigold.bridge/marigold.bridge            {:git/url   "https://github.com/slagyr/isaac-foundation.git"
-                                                                        :git/sha   "3cc82a1a682ec123f1edbd9aca4835db56bb70b2"
+                                                                        :git/tag   "v0.1.0"
+                                                                        :git/sha   "55db89d7aaa5e639ed3cc91fc5548cd1bd5a28b7"
                                                                         :deps/root "modules/marigold.bridge"}
                             marigold.longwave/marigold.longwave        {:git/url   "https://github.com/slagyr/isaac-foundation.git"
-                                                                        :git/sha   "3cc82a1a682ec123f1edbd9aca4835db56bb70b2"
+                                                                        :git/tag   "v0.1.0"
+                                                                        :git/sha   "55db89d7aaa5e639ed3cc91fc5548cd1bd5a28b7"
                                                                         :deps/root "modules/marigold.longwave"}}}
 
   :spec      {:main-opts ["-m" "speclj.main" "-c" "-D" "spec"]}
