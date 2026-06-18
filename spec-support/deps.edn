@@ -1,5 +1,5 @@
 {:paths ["src"]
  :deps  {io.github.slagyr/isaac-foundation-spec {:git/url "https://github.com/slagyr/isaac-foundation.git"
-                                                 :git/tag "v0.1.0" :git/sha "26d5665b5b5c9de5e787df5f36f7972236714add"
+                                                 :git/tag "v0.1.0" :git/sha "36e4a6f10a02b86008eb81aaa20b057387bb4c7a"
                                                  :deps/root "spec"}
          speclj/speclj                          {:mvn/version "3.13.0"}}}
