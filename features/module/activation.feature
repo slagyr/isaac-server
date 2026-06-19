@@ -20,7 +20,9 @@ Feature: Module activation
     Then the log has entries matching:
       | level | event             | module           |
       | :info | :module/activated | isaac.comm.telly |
-      | :info | :telly/started    | bert             |
+    And the log has entries matching:
+      | level | event          | module |
+      | :info | :telly/started | bert   |
 
   Scenario: Declared module is activated during server boot even without a slot
     Given an empty Isaac root at "/tmp/isaac"
