@@ -133,6 +133,21 @@
         (should-not-be-nil (get combined :isaac.fake.pigeon))
         (should-not-be-nil (get combined :isaac.fake.crow)))))
 
+  (it "logs boot phases and a summary during server boot"
+    (with-redefs [httpkit/run-server (fn [_ _] (fn [] nil))
+                  httpkit/server-port (fn [_] 7001)
+                  httpkit/server-stop! (fn [_] nil)]
+      (sut/start! {:host "127.0.0.1" :port 0 :cfg {}})
+      (sut/stop!))
+    (let [phases  (mapv :phase (filter #(= :server/boot-phase (:event %)) @log/captured-logs))
+          summary (first (filter #(= :server/boot-summary (:event %)) @log/captured-logs))]
+      (should= [:discover :load :activate :start] phases)
+      (should-not-be-nil summary)
+      (should (pos-int? (:modules summary)))
+      (should (pos-int? (:loaded summary)))
+      (should (pos-int? (:activated summary)))
+      (should= 0 (:failed summary))))
+
   (it "starts loaded modules during server boot"
     (let [started (atom nil)]
       (with-redefs [httpkit/run-server           (fn [_ _] (fn [] nil))

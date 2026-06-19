@@ -196,9 +196,15 @@
             ;; Phase 5 of brth (isaac-8v1n): the :isaac.server/route
             ;; berth also flows through here, replacing the explicit
             ;; register-route-extensions! pass.
+            _                       (log/info :server/boot-phase :phase :discover
+                                                :modules (count module-index))
+            _                       (log/info :server/boot-phase :phase :load)
             _                       (module-loader/reconcile-modules! module-index)
+            _                       (log/info :server/boot-phase :phase :activate)
+            _                       (module-loader/activate-modules! module-index)
             _                       (module-loader/process-manifest-berths! module-index)
             _                       (runtime/install-config-berths! {:config cfg :module-index module-index})
+            _                       (log/info :server/boot-phase :phase :start)
             _                       (service-runtime/start-all! module-index)
             config-source           (start-config-source opts hot-reload? root)
             _                       (some-> config-source runtime/start!)
@@ -209,6 +215,7 @@
             {:keys [delivery hail-delivery hail-router]} (start-background-services opts scheduler)]
         (when (and dev? start-http-server?)
           (log/info :server/dev-mode-enabled :host host :port actual))
+        (log/info :server/boot-summary (module-loader/boot-stats module-index))
         (reset-server-state! host-ctx comm-registry registries config-source connect-ws! reloader scheduler delivery hail-delivery hail-router server actual host start-http-server?)
         {:port actual :host host}))))
 

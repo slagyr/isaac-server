@@ -87,6 +87,14 @@
       (let [output (with-out-str (sut/run {:port "5000"}))]
         (should (re-find #"5000" output))))
 
+    (it "logs boot-starting before server/started"
+      (with-out-str (sut/run {:port "7000" :host "0.0.0.0"}))
+      (let [events (filter #(#{:server/boot-starting :server/started} (:event %))
+                           @log/captured-logs)]
+        (should= 2 (count events))
+        (should= :server/boot-starting (:event (first events)))
+        (should= :server/started (:event (second events)))))
+
     (it "logs server/started with host and port"
       (with-out-str (sut/run {:port "7000" :host "0.0.0.0"}))
       (let [started (first (filter #(= :server/started (:event %)) @log/captured-logs))]

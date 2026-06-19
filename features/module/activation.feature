@@ -1,7 +1,7 @@
 Feature: Module activation
-  Modules declared in :modules are activated on first use of a capability
-  they extend. Activation requires the module's :entry namespace, which
-  in turn registers the module's contributions (comms, providers, tools).
+  Modules in the discovered index are loaded and activated during server
+  boot in dependency order. Comms and services still instantiate on first
+  configured slot use after boot.
 
   Scenario: Activating the telly module on first comm slot use
     Given an empty Isaac root at "/tmp/isaac"
@@ -22,7 +22,7 @@ Feature: Module activation
       | :info | :module/activated | isaac.comm.telly |
       | :info | :telly/started    | bert             |
 
-  Scenario: Declared module is not activated when no slot uses it
+  Scenario: Declared module is activated during server boot even without a slot
     Given an empty Isaac root at "/tmp/isaac"
     And config:
       | key              | value  |
@@ -35,9 +35,9 @@ Feature: Module activation
        :modules {:isaac.comm.telly {:local/root "../isaac-agent/modules/isaac.comm.telly"}}}
       """
     When the Isaac server is started
-    Then the log has no entries matching:
-      | event             | module           |
-      | :module/activated | isaac.comm.telly |
+    Then the log has entries matching:
+      | level | event             | module           |
+      | :info | :module/activated | isaac.comm.telly |
 
   Scenario: Module activation failure surfaces a structured error
     Given an empty Isaac root at "/tmp/isaac"

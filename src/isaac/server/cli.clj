@@ -62,6 +62,7 @@
     (nexus/-with-nested-nexus {:fs fs*}
       (nexus/init! {:fs fs*})
       (register-builtins!)
+      (log/info :server/boot-starting)
       (if-let [{started-port :port started-host :host}
                (app/start! {:cfg       loaded-config
                             :root      root-dir

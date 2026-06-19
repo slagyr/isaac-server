@@ -2,7 +2,7 @@
 
  :deps  {
          io.github.slagyr/isaac-foundation {:git/url "https://github.com/slagyr/isaac-foundation.git"
-                                            :git/sha "305c337a69427cebbd2ae5471ac6684f0ae321a5"}
+                                            :git/sha "11f03d831cd418f12719780700eb0e2af92e7740"}
          cheshire/cheshire                 {:mvn/version "5.13.0"}
          clj-commons/clj-yaml              {:mvn/version "1.0.29"}
          clout/clout                       {:mvn/version "1.1.0"}
@@ -25,12 +25,10 @@
                                                                         :exclusions [io.github.slagyr/isaac]}
                             org.clojure/data.xml                       {:mvn/version "0.0.8"}
                             marigold.bridge/marigold.bridge            {:git/url   "https://github.com/slagyr/isaac-foundation.git"
-                                                                        :git/tag   "v0.1.2"
-                                                                        :git/sha   "305c337a69427cebbd2ae5471ac6684f0ae321a5"
+                                                                        :git/sha   "11f03d831cd418f12719780700eb0e2af92e7740"
                                                                         :deps/root "modules/marigold.bridge"}
                             marigold.longwave/marigold.longwave        {:git/url   "https://github.com/slagyr/isaac-foundation.git"
-                                                                        :git/tag   "v0.1.2"
-                                                                        :git/sha   "305c337a69427cebbd2ae5471ac6684f0ae321a5"
+                                                                        :git/sha   "11f03d831cd418f12719780700eb0e2af92e7740"
                                                                         :deps/root "modules/marigold.longwave"}}}
 
   :spec      {:main-opts ["-m" "speclj.main" "-c" "-D" "spec"]}
