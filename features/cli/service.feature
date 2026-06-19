@@ -14,32 +14,59 @@ Feature: isaac service — macOS LaunchAgent management
     And the operating system is "Mac OS X"
     And launchctl is stubbed
 
-  Scenario: install writes the plist and bootstraps the agent
-    Given "bb" resolves to "/opt/homebrew/bin/bb"
+  Scenario: install uses the packaged launcher when isaac is on PATH
+    Given "isaac" resolves to "/usr/local/bin/isaac"
     When isaac is run with "service install"
+    Then the file "~/Library/LaunchAgents/com.slagyr.isaac.plist" exists
+    And the plist contains:
+      | path                | value               |
+      | Label               | com.slagyr.isaac    |
+      | ProgramArguments[0] | /usr/local/bin/isaac |
+    And the plist program arguments end with "server"
+    And the stdout does not contain "bb.edn"
+    And launchctl was called with "bootstrap"
+    And the stdout contains "Resolved launcher: /usr/local/bin/isaac"
+    And the exit code is 0
+
+  Scenario: install writes a dev-checkout plist when only bb is on PATH
+    Given "bb" resolves to "/opt/homebrew/bin/bb"
+    When isaac is run with "service install --isaac-dir /projects/isaac"
     Then the file "~/Library/LaunchAgents/com.slagyr.isaac.plist" exists
     And the plist contains:
       | path                | value            |
       | Label               | com.slagyr.isaac |
       | ProgramArguments[0] | /opt/homebrew/bin/bb |
+      | ProgramArguments[4] | isaac.main       |
+      | ProgramArguments[5] | server           |
     And launchctl was called with "bootstrap"
     And the stdout contains "Resolved bb: /opt/homebrew/bin/bb"
     And the exit code is 0
 
-  Scenario: install errors clearly when bb is not on PATH
+  Scenario: install errors clearly when neither launcher nor bb is on PATH
     Given "bb" is not on PATH
     When isaac is run with "service install"
-    Then the stderr contains "could not locate bb"
-    And the stderr contains "pass --bb-bin <path>"
+    Then the stderr contains "could not locate isaac or bb"
+    And the stderr contains "--isaac-bin"
     And the file "~/Library/LaunchAgents/com.slagyr.isaac.plist" does not exist
     And the exit code is 1
 
-  Scenario: install accepts --bb-bin override
+  Scenario: install accepts --bb-bin override for dev checkout
     Given "bb" is not on PATH
-    When isaac is run with "service install --bb-bin /usr/local/bin/bb"
+    When isaac is run with "service install --bb-bin /usr/local/bin/bb --isaac-dir /projects/isaac"
     Then the plist contains:
       | path                | value             |
       | ProgramArguments[0] | /usr/local/bin/bb |
+    And the exit code is 0
+
+  Scenario: packaged install passes --root to the launcher
+    Given "isaac" resolves to "/usr/local/bin/isaac"
+    When isaac is run with "service install --root /var/isaac"
+    Then the plist contains:
+      | path                | value               |
+      | ProgramArguments[0] | /usr/local/bin/isaac |
+      | ProgramArguments[1] | --root              |
+      | ProgramArguments[2] | /var/isaac          |
+      | ProgramArguments[3] | server              |
     And the exit code is 0
 
   Scenario: status shows not installed when plist is absent
@@ -48,7 +75,7 @@ Feature: isaac service — macOS LaunchAgent management
     And the exit code is 1
 
   Scenario: status shows running with pid and last exit
-    Given "bb" resolves to "/opt/homebrew/bin/bb"
+    Given "isaac" resolves to "/usr/local/bin/isaac"
     And isaac is run with "service install"
     And launchctl print returns:
       """
@@ -68,14 +95,14 @@ Feature: isaac service — macOS LaunchAgent management
     And the exit code is 0
 
   Scenario: restart kicks the agent
-    Given "bb" resolves to "/opt/homebrew/bin/bb"
+    Given "isaac" resolves to "/usr/local/bin/isaac"
     And isaac is run with "service install"
     When isaac is run with "service restart"
     Then launchctl was called with "kickstart -k"
     And the exit code is 0
 
   Scenario: logs prints recent entries when log file exists
-    Given "bb" resolves to "/opt/homebrew/bin/bb"
+    Given "isaac" resolves to "/usr/local/bin/isaac"
     And isaac is run with "service install"
     And the file "~/Library/Logs/isaac/server.log" contains:
       """
@@ -86,7 +113,7 @@ Feature: isaac service — macOS LaunchAgent management
     And the exit code is 0
 
   Scenario: logs --follow streams via tail -f
-    Given "bb" resolves to "/opt/homebrew/bin/bb"
+    Given "isaac" resolves to "/usr/local/bin/isaac"
     And isaac is run with "service install"
     And the file "~/Library/Logs/isaac/server.log" contains:
       """
@@ -97,7 +124,7 @@ Feature: isaac service — macOS LaunchAgent management
     And the exit code is 0
 
   Scenario: start re-bootstraps the service after stop
-    Given "bb" resolves to "/opt/homebrew/bin/bb"
+    Given "isaac" resolves to "/usr/local/bin/isaac"
     And isaac is run with "service install"
     And isaac is run with "service stop"
     When isaac is run with "service start"

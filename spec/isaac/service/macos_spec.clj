@@ -27,54 +27,66 @@
 
   (describe "plist-content"
 
-    (it "substitutes all placeholders"
-      (let [plist (sut/plist-content {:bb-bin  "/opt/homebrew/bin/bb"
-                                      :bb-edn  "/projects/isaac"
-                                      :home    "/test/home"
-                                      :log-dir "/test/home/Library/Logs/isaac"})]
-        (should (str/includes? plist "/opt/homebrew/bin/bb"))
-        (should (str/includes? plist "/projects/isaac/bb.edn"))
+    (it "substitutes packaged launcher program arguments"
+      (let [plist (sut/plist-content {:mode      :packaged
+                                      :isaac-bin "/usr/local/bin/isaac"
+                                      :log-dir   "/test/home/Library/Logs/isaac"})]
+        (should (str/includes? plist "/usr/local/bin/isaac"))
+        (should (str/includes? plist "<string>server</string>"))
+        (should-not (str/includes? plist "bb.edn"))
         (should (str/includes? plist "com.slagyr.isaac"))
         (should (str/includes? plist "/test/home/Library/Logs/isaac/server.log"))))
 
+    (it "passes --root before server for packaged installs"
+      (let [plist (sut/plist-content {:mode      :packaged
+                                      :isaac-bin "/usr/local/bin/isaac"
+                                      :root      "/var/isaac"
+                                      :log-dir   "/test/home/Library/Logs/isaac"})]
+        (should (str/includes? plist "<string>--root</string>\n        <string>/var/isaac</string>\n        <string>server</string>"))))
+
+    (it "substitutes dev-checkout program arguments"
+      (let [plist (sut/plist-content {:mode    :dev
+                                      :bb-bin  "/opt/homebrew/bin/bb"
+                                      :bb-edn  "/projects/isaac"
+                                      :log-dir "/test/home/Library/Logs/isaac"})]
+        (should (str/includes? plist "/opt/homebrew/bin/bb"))
+        (should (str/includes? plist "/projects/isaac/bb.edn"))
+        (should (str/includes? plist "com.slagyr.isaac"))))
+
     (it "generates valid XML plist structure"
-      (let [plist (sut/plist-content {:bb-bin  "/usr/local/bin/bb"
+      (let [plist (sut/plist-content {:mode    :dev
+                                      :bb-bin  "/usr/local/bin/bb"
                                       :bb-edn  "/repo"
-                                      :home    "/home/user"
                                       :log-dir "/home/user/Library/Logs/isaac"})]
         (should (str/starts-with? plist "<?xml"))
         (should (str/includes? plist "<plist"))))
 
-    (it "invokes bb with -m isaac.main, not the run subcommand"
-      ;; bb's `run` subcommand treats its next arg as a task name. Putting
-      ;; `run` before `-m` makes bb look for a task literally named "-m"
-      ;; and exit 1, which crashloops launchd. The correct invocation is
-      ;; `bb --config X.bb.edn -m isaac.main server`.
-      (let [plist (sut/plist-content {:bb-bin  "/opt/homebrew/bin/bb"
+    (it "invokes bb with -m isaac.main for dev checkout, not the run subcommand"
+      (let [plist (sut/plist-content {:mode    :dev
+                                      :bb-bin  "/opt/homebrew/bin/bb"
                                       :bb-edn  "/projects/isaac"
-                                      :home    "/test/home"
                                       :log-dir "/test/home/Library/Logs/isaac"})]
         (should-not (str/includes? plist "<string>run</string>"))
         (should (str/includes? plist "<string>-m</string>\n        <string>isaac.main</string>\n        <string>server</string>")))))
 
   (describe "install!"
 
-    (it "writes the plist file"
+    (it "writes the plist file for packaged installs"
       (let [calls (atom [])]
         (binding [shell/*sh* (stub-sh calls)]
-          (sut/install! {:bb-bin "/opt/homebrew/bin/bb" :bb-edn "/projects/isaac"})
+          (sut/install! {:mode :packaged :isaac-bin "/usr/local/bin/isaac"})
           (should (fs/exists? *fs* "/test/home/Library/LaunchAgents/com.slagyr.isaac.plist")))))
 
     (it "creates the log directory"
       (let [calls (atom [])]
         (binding [shell/*sh* (stub-sh calls)]
-          (sut/install! {:bb-bin "/opt/homebrew/bin/bb" :bb-edn "/projects/isaac"})
+          (sut/install! {:mode :packaged :isaac-bin "/usr/local/bin/isaac"})
           (should (fs/exists? *fs* "/test/home/Library/Logs/isaac")))))
 
     (it "calls launchctl bootstrap with the plist path"
       (let [calls (atom [])]
         (binding [shell/*sh* (stub-sh calls)]
-          (sut/install! {:bb-bin "/opt/homebrew/bin/bb" :bb-edn "/projects/isaac"})
+          (sut/install! {:mode :dev :bb-bin "/opt/homebrew/bin/bb" :bb-edn "/projects/isaac"})
           (should (some #(and (= "launchctl" (first %))
                               (= "bootstrap" (second %))
                               (str/includes? (last %) "com.slagyr.isaac.plist"))
@@ -83,8 +95,9 @@
     (it "accepts an explicit fs via opts"
       (let [calls (atom [])
             mem   (fs/mem-fs)]
-        (binding [shell/*sh* (stub-sh calls)]
-          (sut/install! {:bb-bin "/opt/homebrew/bin/bb" :bb-edn "/projects/isaac" :fs mem})
+        (binding [shell/*sh* (stub-sh calls)
+                  root/*user-home* "/test/home"]
+          (sut/install! {:mode :packaged :isaac-bin "/usr/local/bin/isaac" :fs mem})
           (should (fs/exists? mem "/test/home/Library/LaunchAgents/com.slagyr.isaac.plist")))))
 
   (describe "start!"

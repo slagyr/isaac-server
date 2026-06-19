@@ -19,12 +19,7 @@
     <string>{LABEL}</string>
     <key>ProgramArguments</key>
     <array>
-        <string>{BB_BIN}</string>
-        <string>--config</string>
-        <string>{BB_EDN}/bb.edn</string>
-        <string>-m</string>
-        <string>isaac.main</string>
-        <string>server</string>
+        {PROGRAM_ARGS}
     </array>
     <key>KeepAlive</key>
     <true/>
@@ -37,13 +32,32 @@
 </dict>
 </plist>")
 
-(defn plist-content [{:keys [bb-bin bb-edn home log-dir]}]
-  (-> plist-template
-      (str/replace "{LABEL}"   label)
-      (str/replace "{BB_BIN}"  bb-bin)
-      (str/replace "{BB_EDN}"  bb-edn)
-      (str/replace "{HOME}"    (or home ""))
-      (str/replace "{LOG_DIR}" log-dir)))
+(defn- program-arguments
+  "Packaged installs run the launcher (`isaac server`); dev checkouts use
+   `bb --config <repo>/bb.edn -m isaac.main server`."
+  [{:keys [mode isaac-bin bb-bin bb-edn root]}]
+  (case mode
+    :packaged
+    (cond-> [isaac-bin]
+      (some? root) (into ["--root" root])
+      true         (conj "server"))
+
+    :dev
+    [bb-bin "--config" (str bb-edn "/bb.edn") "-m" "isaac.main" "server"]))
+
+(defn- program-args-xml [args]
+  (str/join "\n        " (map #(str "<string>" % "</string>") args)))
+
+(defn plist-content [{:keys [mode isaac-bin bb-bin bb-edn root log-dir]}]
+  (let [args (program-arguments {:mode      mode
+                                 :isaac-bin isaac-bin
+                                 :bb-bin    bb-bin
+                                 :bb-edn    bb-edn
+                                 :root      root})]
+    (-> plist-template
+        (str/replace "{LABEL}" label)
+        (str/replace "{PROGRAM_ARGS}" (program-args-xml args))
+        (str/replace "{LOG_DIR}" log-dir))))
 
 (defn- user-home [] (root/user-home))
 (defn- plist-path [] (str (user-home) "/Library/LaunchAgents/" label ".plist"))
@@ -58,15 +72,16 @@
 (defn- bootstrap-target []
   (str "gui/" (uid)))
 
-(defn install! [{:keys [bb-bin bb-edn] :as opts}]
+(defn install! [{:keys [mode isaac-bin bb-bin bb-edn root] :as opts}]
   (let [log-d   (log-dir)
         plist-p (plist-path)
-        h       (user-home)
         fs*     (runtime-fs opts)
-        content (plist-content {:bb-bin  bb-bin
-                                :bb-edn  bb-edn
-                                :home    h
-                                :log-dir log-d})]
+        content (plist-content {:mode      mode
+                                :isaac-bin isaac-bin
+                                :bb-bin    bb-bin
+                                :bb-edn    bb-edn
+                                :root      root
+                                :log-dir   log-d})]
     (fs/mkdirs fs* (fs/parent plist-p))
     (fs/mkdirs fs* log-d)
     (fs/spit fs* plist-p content)

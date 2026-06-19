@@ -33,24 +33,37 @@
       (binding [shell/*os-name* "Mac OS X"]
         (example)))
 
-    (it "install succeeds when bb is found"
+    (it "install prefers packaged launcher when isaac is found"
       (binding [shell/*sh* (fn [& args]
-                             (if (= ["which" "bb"] (take 2 (vec args)))
-                               {:exit 0 :out "/opt/homebrew/bin/bb\n" :err ""}
+                             (case (vec args)
+                               ["which" "isaac"] {:exit 0 :out "/usr/local/bin/isaac\n" :err ""}
                                {:exit 0 :out "" :err ""}))]
         (let [result (run "service install")]
           (should= 0 (:exit result))
+          (should (str/includes? (:out result) "Resolved launcher: /usr/local/bin/isaac")))))
+
+    (it "install falls back to dev bb when isaac is not found"
+      (binding [shell/*sh* (fn [& args]
+                             (case (vec args)
+                               ["which" "isaac"] {:exit 1 :out "" :err ""}
+                               ["which" "bb"]    {:exit 0 :out "/opt/homebrew/bin/bb\n" :err ""}
+                               {:exit 0 :out "" :err ""}))]
+        (let [result (run "service install --isaac-dir /projects/isaac")]
+          (should= 0 (:exit result))
           (should (str/includes? (:out result) "Resolved bb:")))))
 
-    (it "install fails when bb is not found"
+    (it "install fails when neither isaac nor bb is found"
       (binding [shell/*sh* (fn [& _] {:exit 1 :out "" :err ""})]
         (let [result (run "service install")]
           (should= 1 (:exit result))
-          (should (str/includes? (:err result) "could not locate bb")))))
+          (should (str/includes? (:err result) "could not locate isaac or bb")))))
 
-    (it "install succeeds with --bb-bin override"
-      (binding [shell/*sh* (fn [& _] {:exit 0 :out "" :err ""})]
-        (let [result (run "service install --bb-bin /usr/local/bin/bb")]
+    (it "install succeeds with --bb-bin override for dev checkout"
+      (binding [shell/*sh* (fn [& args]
+                             (case (vec args)
+                               ["which" "isaac"] {:exit 1 :out "" :err ""}
+                               {:exit 0 :out "" :err ""}))]
+        (let [result (run "service install --bb-bin /usr/local/bin/bb --isaac-dir /projects/isaac")]
           (should= 0 (:exit result))
           (should (str/includes? (:out result) "/usr/local/bin/bb")))))
 

@@ -8,23 +8,32 @@
     [isaac.shell :as shell]))
 
 (def ^:private install-options
-  [[nil "--bb-bin PATH" "Path to bb binary (default: resolved via which)"]
-   [nil "--isaac-dir PATH" "Path to Isaac repo root (default: current directory)"]
+  [[nil "--isaac-bin PATH" "Path to packaged isaac launcher (default: resolved via which)"]
+   [nil "--bb-bin PATH" "Path to bb binary for dev checkout (default: resolved via which)"]
+   [nil "--isaac-dir PATH" "Path to Isaac repo root for dev checkout (default: current directory)"]
+   [nil "--root PATH" "Isaac root directory passed to the server"]
    ["-h" "--help" "Show help"]])
 
 (def ^:private logs-options
   [["-f" "--follow" "Follow log output (tail -f)"]
    ["-h" "--help" "Show help"]])
 
+(defn- find-on-path [cmd]
+  (let [result (shell/sh! "which" cmd)]
+    (when (zero? (:exit result))
+      (str/trim (:out result)))))
+
 (defn- find-bb [bb-bin-override]
-  (if bb-bin-override
-    bb-bin-override
-    (let [result (shell/sh! "which" "bb")]
-      (when (zero? (:exit result))
-        (str/trim (:out result))))))
+  (or bb-bin-override (find-on-path "bb")))
+
+(defn- find-isaac [isaac-bin-override]
+  (or isaac-bin-override (find-on-path "isaac")))
 
 (defn- bb-edn-dir [isaac-dir-override]
   (or isaac-dir-override (System/getProperty "user.dir")))
+
+(defn- install-root [opts options]
+  (or (:root options) (:root opts) (:display-root opts)))
 
 (defn- unsupported-os [os]
   (binding [*out* *err*]
@@ -37,18 +46,32 @@
       (:help options) (do (println "Usage: isaac service install [options]") 0)
       (seq errors)    (do (binding [*out* *err*] (doseq [e errors] (println e))) 1)
       :else
-      (let [bb-bin (find-bb (:bb-bin options))]
-        (if-not bb-bin
+      (let [root      (install-root opts options)
+            isaac-bin (find-isaac (:isaac-bin options))]
+        (if isaac-bin
           (do
-            (binding [*out* *err*]
-              (println "could not locate bb on PATH")
-              (println "pass --bb-bin <path> to specify it explicitly"))
-            1)
-          (let [bb-edn (bb-edn-dir (:isaac-dir options))]
-            (macos/install! {:bb-bin bb-bin :bb-edn bb-edn})
-            (println (str "Resolved bb: " bb-bin))
-            (println (str "Service installed: com.slagyr.isaac"))
-            0))))))
+            (macos/install! (cond-> {:mode      :packaged
+                                     :isaac-bin isaac-bin
+                                     :root      root}
+                              (:fs opts) (assoc :fs (:fs opts))))
+            (println (str "Resolved launcher: " isaac-bin))
+            (println "Service installed: com.slagyr.isaac")
+            0)
+          (let [bb-bin (find-bb (:bb-bin options))]
+            (if-not bb-bin
+              (do
+                (binding [*out* *err*]
+                  (println "could not locate isaac or bb on PATH")
+                  (println "pass --isaac-bin <path> for a packaged install, or --bb-bin <path> for dev checkout"))
+                1)
+              (let [bb-edn (bb-edn-dir (:isaac-dir options))]
+                (macos/install! (cond-> {:mode   :dev
+                                         :bb-bin bb-bin
+                                         :bb-edn bb-edn}
+                                  (:fs opts) (assoc :fs (:fs opts))))
+                (println (str "Resolved bb: " bb-bin))
+                (println "Service installed: com.slagyr.isaac")
+                0))))))))
 
 (defn- run-uninstall [opts]
   (macos/uninstall! opts)

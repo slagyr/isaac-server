@@ -127,6 +127,14 @@
             actual          (plist-get pmap path)]
         (g/should= expected (str actual))))))
 
+(defn plist-program-arguments-end-with [expected]
+  (let [plist-path (expand-path "~/Library/LaunchAgents/com.slagyr.isaac.plist")
+        content    (if-let [mem-fs (g/get :mem-fs)]
+                     (fs/slurp mem-fs plist-path)
+                     (slurp plist-path))
+        args       (get (parse-plist content) "ProgramArguments")]
+    (g/should= expected (last args))))
+
 (defgiven "launchctl is stubbed" isaac.service.service-steps/launchctl-stubbed)
 
 (defgiven "launchctl print returns:" isaac.service.service-steps/launchctl-print-returns)
@@ -140,5 +148,8 @@
 (defgiven "{cmd:string} is not on PATH" isaac.service.service-steps/bb-not-on-path)
 
 (defthen "the plist contains:" isaac.service.service-steps/plist-contains)
+
+(defthen "the plist program arguments end with {expected:string}"
+  isaac.service.service-steps/plist-program-arguments-end-with)
 
 (defthen "sh was called with {expected:string}" isaac.service.service-steps/sh-was-called-with)
