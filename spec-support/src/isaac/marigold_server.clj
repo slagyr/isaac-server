@@ -55,6 +55,7 @@
   (binding [module-loader/*foundation-index-override* nil]
     (reset-module-state!)
     (module-loader/activate-foundation!)
+    ((requiring-resolve 'isaac.llm.api.grover/install-test-fixture!))
     (thunk)))
 
 (defmacro with-real-manifest

@@ -124,6 +124,7 @@
                     (pr-str {:model :grover :soul "You are Atticus."}))))
 
 (defn default-grover-setup []
+  ((requiring-resolve 'isaac.llm.api.grover/install-test-fixture!))
   (froot/initialize-root! "target/test-state" true)
   (write-grover-defaults! (g/get :root))
   (g/update! :server-config #(merge (or % {}) {:server {:hot-reload true}})))
