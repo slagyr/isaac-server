@@ -47,17 +47,29 @@
       (seq errors)    (do (binding [*out* *err*] (doseq [e errors] (println e))) 1)
       :else
       (let [root      (install-root opts options)
-            isaac-bin (find-isaac (:isaac-bin options))]
-        (if isaac-bin
-          (do
-            (macos/install! (cond-> {:mode      :packaged
-                                     :isaac-bin isaac-bin
-                                     :root      root}
-                              (:fs opts) (assoc :fs (:fs opts))))
-            (println (str "Resolved launcher: " isaac-bin))
-            (println "Service installed: com.slagyr.isaac")
-            0)
-          (let [bb-bin (find-bb (:bb-bin options))]
+            isaac-bin (find-isaac (:isaac-bin options))
+            bb-bin    (find-bb (:bb-bin options))]
+        (cond
+          isaac-bin
+          (if-not bb-bin
+            (do
+              (binding [*out* *err*]
+                (println "could not locate bb on PATH (required by the isaac launcher)")
+                (println "pass --bb-bin <path> to specify it explicitly"))
+              1)
+            (do
+              (macos/install! (cond-> {:mode      :packaged
+                                       :isaac-bin isaac-bin
+                                       :bb-bin    bb-bin
+                                       :root      root}
+                                (:fs opts) (assoc :fs (:fs opts))))
+              (println (str "Resolved launcher: " isaac-bin))
+              (println (str "Resolved bb: " bb-bin))
+              (println "Service installed: com.slagyr.isaac")
+              0))
+
+          :else
+          (let [bb-bin bb-bin]
             (if-not bb-bin
               (do
                 (binding [*out* *err*]

@@ -46,9 +46,15 @@
     (plist-dict (:content dict))))
 
 (defn- plist-get [pmap path]
-  (if-let [[_ key idx-str] (re-matches #"(.+)\[(\d+)\]" path)]
-    (nth (get pmap key) (parse-long idx-str) nil)
-    (get pmap path)))
+  (cond
+    (str/includes? path ".")
+    (let [[parent child] (str/split path #"\." 2)]
+      (get (get pmap parent) child))
+
+    :else
+    (if-let [[_ key idx-str] (re-matches #"(.+)\[(\d+)\]" path)]
+      (nth (get pmap key) (parse-long idx-str) nil)
+      (get pmap path))))
 
 (defn- sh-fn []
   (fn [& args]
@@ -100,7 +106,7 @@
   (g/assoc! :os-name os))
 
 (defn bb-resolves-to [cmd path]
-  (g/assoc! :which-results {cmd path})
+  (g/update! :which-results #(assoc (or % {}) cmd path))
   (when-not (g/get :sh-fn)
     (g/assoc! :sh-fn (sh-fn))))
 

@@ -37,10 +37,12 @@
       (binding [shell/*sh* (fn [& args]
                              (case (vec args)
                                ["which" "isaac"] {:exit 0 :out "/usr/local/bin/isaac\n" :err ""}
+                               ["which" "bb"]    {:exit 0 :out "/usr/local/bin/bb\n" :err ""}
                                {:exit 0 :out "" :err ""}))]
         (let [result (run "service install")]
           (should= 0 (:exit result))
-          (should (str/includes? (:out result) "Resolved launcher: /usr/local/bin/isaac")))))
+          (should (str/includes? (:out result) "Resolved launcher: /usr/local/bin/isaac"))
+          (should (str/includes? (:out result) "Resolved bb: /usr/local/bin/bb")))))
 
     (it "install falls back to dev bb when isaac is not found"
       (binding [shell/*sh* (fn [& args]

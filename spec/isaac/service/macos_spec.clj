@@ -30,12 +30,26 @@
     (it "substitutes packaged launcher program arguments"
       (let [plist (sut/plist-content {:mode      :packaged
                                       :isaac-bin "/usr/local/bin/isaac"
+                                      :bb-bin    "/usr/local/bin/bb"
                                       :log-dir   "/test/home/Library/Logs/isaac"})]
         (should (str/includes? plist "/usr/local/bin/isaac"))
         (should (str/includes? plist "<string>server</string>"))
         (should-not (str/includes? plist "bb.edn"))
         (should (str/includes? plist "com.slagyr.isaac"))
         (should (str/includes? plist "/test/home/Library/Logs/isaac/server.log"))))
+
+    (it "sets launchd PATH with bb dir plus /usr/bin and /bin"
+      (let [plist (sut/plist-content {:mode      :packaged
+                                      :isaac-bin "/usr/local/bin/isaac"
+                                      :bb-bin    "/usr/local/bin/bb"
+                                      :log-dir   "/test/home/Library/Logs/isaac"})]
+        (should (str/includes? plist "<key>EnvironmentVariables</key>"))
+        (should (str/includes? plist "<string>/usr/local/bin:/usr/bin:/bin</string>"))))
+
+    (it "builds launchd-path from bb and isaac parent dirs"
+      (should= "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
+               (sut/launchd-path {:bb-bin    "/opt/homebrew/bin/bb"
+                                  :isaac-bin "/usr/local/bin/isaac"})))
 
     (it "passes --root before server for packaged installs"
       (let [plist (sut/plist-content {:mode      :packaged
@@ -74,13 +88,13 @@
     (it "writes the plist file for packaged installs"
       (let [calls (atom [])]
         (binding [shell/*sh* (stub-sh calls)]
-          (sut/install! {:mode :packaged :isaac-bin "/usr/local/bin/isaac"})
+          (sut/install! {:mode :packaged :isaac-bin "/usr/local/bin/isaac" :bb-bin "/usr/local/bin/bb"})
           (should (fs/exists? *fs* "/test/home/Library/LaunchAgents/com.slagyr.isaac.plist")))))
 
     (it "creates the log directory"
       (let [calls (atom [])]
         (binding [shell/*sh* (stub-sh calls)]
-          (sut/install! {:mode :packaged :isaac-bin "/usr/local/bin/isaac"})
+          (sut/install! {:mode :packaged :isaac-bin "/usr/local/bin/isaac" :bb-bin "/usr/local/bin/bb"})
           (should (fs/exists? *fs* "/test/home/Library/Logs/isaac")))))
 
     (it "calls launchctl bootstrap with the plist path"

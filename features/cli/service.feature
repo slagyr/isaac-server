@@ -14,8 +14,18 @@ Feature: isaac service — macOS LaunchAgent management
     And the operating system is "Mac OS X"
     And launchctl is stubbed
 
+  Scenario: install sets PATH so launchd can find bb and git
+    Given "isaac" resolves to "/usr/local/bin/isaac"
+    And "bb" resolves to "/usr/local/bin/bb"
+    When isaac is run with "service install"
+    Then the plist contains:
+      | path                        | value                            |
+      | EnvironmentVariables.PATH   | /usr/local/bin:/usr/bin:/bin    |
+    And the exit code is 0
+
   Scenario: install uses the packaged launcher when isaac is on PATH
     Given "isaac" resolves to "/usr/local/bin/isaac"
+    And "bb" resolves to "/usr/local/bin/bb"
     When isaac is run with "service install"
     Then the file "~/Library/LaunchAgents/com.slagyr.isaac.plist" exists
     And the plist contains:
@@ -33,11 +43,12 @@ Feature: isaac service — macOS LaunchAgent management
     When isaac is run with "service install --isaac-dir /projects/isaac"
     Then the file "~/Library/LaunchAgents/com.slagyr.isaac.plist" exists
     And the plist contains:
-      | path                | value            |
-      | Label               | com.slagyr.isaac |
-      | ProgramArguments[0] | /opt/homebrew/bin/bb |
-      | ProgramArguments[4] | isaac.main       |
-      | ProgramArguments[5] | server           |
+      | path                      | value                         |
+      | Label                     | com.slagyr.isaac              |
+      | ProgramArguments[0]       | /opt/homebrew/bin/bb          |
+      | ProgramArguments[4]       | isaac.main                    |
+      | ProgramArguments[5]       | server                        |
+      | EnvironmentVariables.PATH | /opt/homebrew/bin:/usr/bin:/bin |
     And launchctl was called with "bootstrap"
     And the stdout contains "Resolved bb: /opt/homebrew/bin/bb"
     And the exit code is 0
@@ -60,6 +71,7 @@ Feature: isaac service — macOS LaunchAgent management
 
   Scenario: packaged install passes --root to the launcher
     Given "isaac" resolves to "/usr/local/bin/isaac"
+    And "bb" resolves to "/usr/local/bin/bb"
     When isaac is run with "service install --root /var/isaac"
     Then the plist contains:
       | path                | value               |
@@ -76,6 +88,7 @@ Feature: isaac service — macOS LaunchAgent management
 
   Scenario: status shows running with pid and last exit
     Given "isaac" resolves to "/usr/local/bin/isaac"
+    And "bb" resolves to "/usr/local/bin/bb"
     And isaac is run with "service install"
     And launchctl print returns:
       """
@@ -96,6 +109,7 @@ Feature: isaac service — macOS LaunchAgent management
 
   Scenario: restart kicks the agent
     Given "isaac" resolves to "/usr/local/bin/isaac"
+    And "bb" resolves to "/usr/local/bin/bb"
     And isaac is run with "service install"
     When isaac is run with "service restart"
     Then launchctl was called with "kickstart -k"
@@ -103,6 +117,7 @@ Feature: isaac service — macOS LaunchAgent management
 
   Scenario: logs prints recent entries when log file exists
     Given "isaac" resolves to "/usr/local/bin/isaac"
+    And "bb" resolves to "/usr/local/bin/bb"
     And isaac is run with "service install"
     And the file "~/Library/Logs/isaac/server.log" contains:
       """
@@ -114,6 +129,7 @@ Feature: isaac service — macOS LaunchAgent management
 
   Scenario: logs --follow streams via tail -f
     Given "isaac" resolves to "/usr/local/bin/isaac"
+    And "bb" resolves to "/usr/local/bin/bb"
     And isaac is run with "service install"
     And the file "~/Library/Logs/isaac/server.log" contains:
       """
@@ -125,6 +141,7 @@ Feature: isaac service — macOS LaunchAgent management
 
   Scenario: start re-bootstraps the service after stop
     Given "isaac" resolves to "/usr/local/bin/isaac"
+    And "bb" resolves to "/usr/local/bin/bb"
     And isaac is run with "service install"
     And isaac is run with "service stop"
     When isaac is run with "service start"

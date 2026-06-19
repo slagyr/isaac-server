@@ -21,6 +21,11 @@
     <array>
         {PROGRAM_ARGS}
     </array>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>{PATH}</string>
+    </dict>
     <key>KeepAlive</key>
     <true/>
     <key>RunAtLoad</key>
@@ -48,15 +53,32 @@
 (defn- program-args-xml [args]
   (str/join "\n        " (map #(str "<string>" % "</string>") args)))
 
-(defn plist-content [{:keys [mode isaac-bin bb-bin bb-edn root log-dir]}]
+(defn- parent-dir [path]
+  (when (and (string? path) (seq path))
+    (.getParent (java.io.File. path))))
+
+(defn launchd-path
+  "Minimal PATH for launchd: bb/isaac dirs plus /usr/bin and /bin (git)."
+  [{:keys [bb-bin isaac-bin]}]
+  (->> [(parent-dir bb-bin)
+        (parent-dir isaac-bin)
+        "/usr/bin"
+        "/bin"]
+       (remove str/blank?)
+       distinct
+       (str/join ":")))
+
+(defn plist-content [{:keys [mode isaac-bin bb-bin bb-edn root log-dir path]}]
   (let [args (program-arguments {:mode      mode
                                  :isaac-bin isaac-bin
                                  :bb-bin    bb-bin
                                  :bb-edn    bb-edn
-                                 :root      root})]
+                                 :root      root})
+        path (or path (launchd-path {:bb-bin bb-bin :isaac-bin isaac-bin}))]
     (-> plist-template
         (str/replace "{LABEL}" label)
         (str/replace "{PROGRAM_ARGS}" (program-args-xml args))
+        (str/replace "{PATH}" path)
         (str/replace "{LOG_DIR}" log-dir))))
 
 (defn- user-home [] (root/user-home))
@@ -81,7 +103,8 @@
                                 :bb-bin    bb-bin
                                 :bb-edn    bb-edn
                                 :root      root
-                                :log-dir   log-d})]
+                                :log-dir   log-d
+                                :path      (:path opts)})]
     (fs/mkdirs fs* (fs/parent plist-p))
     (fs/mkdirs fs* log-d)
     (fs/spit fs* plist-p content)
