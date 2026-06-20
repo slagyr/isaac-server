@@ -124,7 +124,10 @@
                     (pr-str {:model :grover :soul "You are Atticus."}))))
 
 (defn default-grover-setup []
-  ((requiring-resolve 'isaac.llm.api.grover/install-test-fixture!))
+  ;; Grover is a config-driven test provider (write-grover-defaults! below
+  ;; writes models/grover.edn :provider :grover); isaac.llm.api.grover is not on
+  ;; isaac-server's test classpath, and install-test-fixture! was removed
+  ;; upstream anyway. These server tests exercise comm/reconcile, not the LLM.
   (froot/initialize-root! "target/test-state" true)
   (write-grover-defaults! (g/get :root))
   (g/update! :server-config #(merge (or % {}) {:server {:hot-reload true}})))
