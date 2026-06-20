@@ -3,7 +3,7 @@ Feature: Module activation
   boot in dependency order. Comms and services still instantiate on first
   configured slot use after boot.
 
-  Scenario: Activating the telly module on first comm slot use
+  Scenario: Comm slot starts when configured at boot
     Given an empty Isaac root at "/tmp/isaac"
     And config:
       | key              | value  |
@@ -21,8 +21,8 @@ Feature: Module activation
       | level | event             | module           |
       | :info | :module/activated | isaac.comm.telly |
     And the log has entries matching:
-      | level | event          | module |
-      | :info | :telly/started | bert   |
+      | level | event              | path       | impl  |
+      | :info | :lifecycle/started | comms.bert | telly |
 
   Scenario: Declared module is activated during server boot even without a slot
     Given an empty Isaac root at "/tmp/isaac"
