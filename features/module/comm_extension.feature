@@ -17,7 +17,7 @@ Feature: Comm extension
       {:log    {:output :memory}
        :server {:hot-reload false}
        :crew   {:main {}}
-       :modules {:isaac.comm.telly {:local/root "../isaac-agent/modules/isaac.comm.telly"}}
+       :modules {:isaac.comm.telly {:git/url "https://github.com/slagyr/isaac-agent.git", :git/sha "632d7fead97bf9c35f9a892a7ace5857c7e68972", :deps/root "modules/isaac.comm.telly"}}
        :comms  {:north-bot {:type :telly :crew :main}
                 :south-bot {:type :telly :crew :main}}}
       """

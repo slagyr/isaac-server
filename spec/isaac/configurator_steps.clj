@@ -21,7 +21,9 @@
 (def ^:private telly-module-id :isaac.comm.telly)
 
 (def ^:private telly-module-coord
-  {:local/root "../isaac-agent/modules/isaac.comm.telly"})
+  {:git/url   "https://github.com/slagyr/isaac-agent.git"
+   :git/sha   "632d7fead97bf9c35f9a892a7ace5857c7e68972"
+   :deps/root "modules/isaac.comm.telly"})
 
 (defn- ->slot-key [name]
   (keyword name))

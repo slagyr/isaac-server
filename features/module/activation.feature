@@ -13,7 +13,7 @@ Feature: Module activation
       """
       {:log     {:output :memory}
        :server  {:hot-reload false}
-       :modules {:isaac.comm.telly {:local/root "../isaac-agent/modules/isaac.comm.telly"}}
+       :modules {:isaac.comm.telly {:git/url "https://github.com/slagyr/isaac-agent.git", :git/sha "632d7fead97bf9c35f9a892a7ace5857c7e68972", :deps/root "modules/isaac.comm.telly"}}
        :comms   {:bert {:type :telly :loft "rooftop"}}}
       """
     When the Isaac server is started
@@ -34,7 +34,7 @@ Feature: Module activation
       """
       {:log     {:output :memory}
        :server  {:hot-reload false}
-       :modules {:isaac.comm.telly {:local/root "../isaac-agent/modules/isaac.comm.telly"}}}
+       :modules {:isaac.comm.telly {:git/url "https://github.com/slagyr/isaac-agent.git", :git/sha "632d7fead97bf9c35f9a892a7ace5857c7e68972", :deps/root "modules/isaac.comm.telly"}}}
       """
     When the Isaac server is started
     Then the log has entries matching:
@@ -52,7 +52,7 @@ Feature: Module activation
       """
       {:log     {:output :memory}
        :server  {:hot-reload false}
-       :modules {:isaac.comm.telly {:local/root "../isaac-agent/modules/isaac.comm.telly"}}
+       :modules {:isaac.comm.telly {:git/url "https://github.com/slagyr/isaac-agent.git", :git/sha "632d7fead97bf9c35f9a892a7ace5857c7e68972", :deps/root "modules/isaac.comm.telly"}}
        :comms   {:bert {:type :telly :loft "rooftop"}}}
       """
     When the Isaac server is started
