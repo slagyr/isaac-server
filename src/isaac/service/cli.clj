@@ -12,6 +12,8 @@
    [nil "--bb-bin PATH" "Path to bb binary for dev checkout (default: resolved via which)"]
    [nil "--isaac-dir PATH" "Path to Isaac repo root for dev checkout (default: current directory)"]
    [nil "--root PATH" "Isaac root directory passed to the server"]
+   [nil "--runtime RUNTIME" "Server runtime baked into the plist: bb (default) or jvm"
+    :default "bb"]
    ["-h" "--help" "Show help"]])
 
 (def ^:private logs-options
@@ -47,9 +49,13 @@
       (seq errors)    (do (binding [*out* *err*] (doseq [e errors] (println e))) 1)
       :else
       (let [root      (install-root opts options)
+            runtime   (:runtime options)
             isaac-bin (find-isaac (:isaac-bin options))
             bb-bin    (find-bb (:bb-bin options))]
         (cond
+          (and runtime (not (#{"bb" "jvm"} runtime)))
+          (do (binding [*out* *err*] (println "--runtime must be bb or jvm")) 1)
+
           isaac-bin
           (if-not bb-bin
             (do
@@ -61,7 +67,8 @@
               (macos/install! (cond-> {:mode      :packaged
                                        :isaac-bin isaac-bin
                                        :bb-bin    bb-bin
-                                       :root      root}
+                                       :root      root
+                                       :runtime   runtime}
                                 (:fs opts) (assoc :fs (:fs opts))))
               (println (str "Resolved launcher: " isaac-bin))
               (println (str "Resolved bb: " bb-bin))
@@ -77,9 +84,10 @@
                   (println "pass --isaac-bin <path> for a packaged install, or --bb-bin <path> for dev checkout"))
                 1)
               (let [bb-edn (bb-edn-dir (:isaac-dir options))]
-                (macos/install! (cond-> {:mode   :dev
-                                         :bb-bin bb-bin
-                                         :bb-edn bb-edn}
+                (macos/install! (cond-> {:mode    :dev
+                                         :bb-bin  bb-bin
+                                         :bb-edn  bb-edn
+                                         :runtime runtime}
                                   (:fs opts) (assoc :fs (:fs opts))))
                 (println (str "Resolved bb: " bb-bin))
                 (println "Service installed: com.slagyr.isaac")
@@ -111,6 +119,7 @@
       (do (println "not installed") 1)
       (do
         (println (str "state: " (or (:state result) "unknown")))
+        (println (str "runtime: " (or (:runtime result) "bb")))
         (when-let [pid (:pid result)]
           (println (str "pid:   " pid)))
         (when-let [exit (:last-exit result)]

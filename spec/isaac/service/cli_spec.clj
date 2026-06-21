@@ -90,6 +90,28 @@
           (should= 0 (:exit result))
           (should (str/includes? (:out result) "running")))))
 
+    (it "install --runtime jvm bakes the flag into the plist"
+      (binding [shell/*sh* (fn [& args]
+                             (case (vec args)
+                               ["which" "isaac"] {:exit 0 :out "/usr/local/bin/isaac\n" :err ""}
+                               ["which" "bb"]    {:exit 0 :out "/usr/local/bin/bb\n" :err ""}
+                               {:exit 0 :out "" :err ""}))]
+        (let [result (run "service install --runtime jvm")]
+          (should= 0 (:exit result))
+          (let [plist (fs/slurp (nexus/get :fs) "/test/home/Library/LaunchAgents/com.slagyr.isaac.plist")]
+            (should (re-find #"server.*--runtime.*jvm" (str/replace plist #"\s+" " ")))))))
+
+    (it "status reports installed runtime from the plist"
+      (binding [shell/*sh* (fn [& args]
+                             (case (vec args)
+                               ["which" "isaac"] {:exit 0 :out "/usr/local/bin/isaac\n" :err ""}
+                               ["which" "bb"]    {:exit 0 :out "/usr/local/bin/bb\n" :err ""}
+                               ["launchctl" "print" _] {:exit 0 :out "{ state = stopped }" :err ""}
+                               {:exit 0 :out "" :err ""}))]
+        (run "service install --runtime jvm")
+        (let [result (run "service status")]
+          (should (str/includes? (:out result) "runtime: jvm")))))
+
     (it "restart calls launchctl kickstart -k"
       (let [calls (atom [])]
         (binding [shell/*sh* (fn [& args]

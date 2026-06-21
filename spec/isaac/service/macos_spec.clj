@@ -58,6 +58,23 @@
                                       :log-dir   "/test/home/Library/Logs/isaac"})]
         (should (str/includes? plist "<string>--root</string>\n        <string>/var/isaac</string>\n        <string>server</string>"))))
 
+    (it "bakes --runtime jvm after server for packaged installs"
+      (let [plist (sut/plist-content {:mode      :packaged
+                                      :isaac-bin "/usr/local/bin/isaac"
+                                      :bb-bin    "/usr/local/bin/bb"
+                                      :runtime   "jvm"
+                                      :log-dir   "/test/home/Library/Logs/isaac"})]
+        (should (str/includes? plist "<string>server</string>\n        <string>--runtime</string>\n        <string>jvm</string>"))
+        (should-not (str/includes? plist "<string>--runtime</string>\n        <string>bb</string>"))))
+
+    (it "omits --runtime for default bb packaged installs"
+      (let [plist (sut/plist-content {:mode      :packaged
+                                      :isaac-bin "/usr/local/bin/isaac"
+                                      :bb-bin    "/usr/local/bin/bb"
+                                      :log-dir   "/test/home/Library/Logs/isaac"})]
+        (should (str/includes? plist "<string>server</string>"))
+        (should-not (str/includes? plist "--runtime"))))
+
     (it "substitutes dev-checkout program arguments"
       (let [plist (sut/plist-content {:mode    :dev
                                       :bb-bin  "/opt/homebrew/bin/bb"
@@ -161,6 +178,23 @@
           (sut/uninstall! {})
           (should (some #(and (= "launchctl" (first %)) (= "bootout" (second %))) @calls))))))
 
+  (describe "runtime-from-plist"
+
+    (it "reads jvm from ProgramArguments"
+      (let [plist (sut/plist-content {:mode      :packaged
+                                      :isaac-bin "/usr/local/bin/isaac"
+                                      :bb-bin    "/usr/local/bin/bb"
+                                      :runtime   "jvm"
+                                      :log-dir   "/test/home/Library/Logs/isaac"})]
+        (should= "jvm" (sut/runtime-from-plist plist))))
+
+    (it "defaults to bb when --runtime is absent"
+      (let [plist (sut/plist-content {:mode      :packaged
+                                      :isaac-bin "/usr/local/bin/isaac"
+                                      :bb-bin    "/usr/local/bin/bb"
+                                      :log-dir   "/test/home/Library/Logs/isaac"})]
+        (should= "bb" (sut/runtime-from-plist plist)))))
+
   (describe "parse-status"
 
     (it "extracts state, pid, and last exit code from launchctl print output"
@@ -174,4 +208,16 @@
       (let [result (sut/parse-status "{ state = waiting }")]
         (should= "waiting" (:state result))
         (should-be-nil (:pid result))
-        (should-be-nil (:last-exit result))))))
+        (should-be-nil (:last-exit result)))))
+
+  (describe "status! runtime"
+
+    (it "includes installed runtime from the plist"
+      (let [calls (atom [])]
+        (binding [shell/*sh* (stub-sh calls)]
+          (sut/install! {:mode :packaged :isaac-bin "/usr/local/bin/isaac" :bb-bin "/usr/local/bin/bb" :runtime "jvm"})
+          (binding [shell/*sh* (fn [& args]
+                                 (if (= "print" (second (vec args)))
+                                   {:exit 0 :out "{ state = stopped }" :err ""}
+                                   {:exit 0 :out "" :err ""}))]
+            (should= "jvm" (:runtime (sut/status! {})))))))))

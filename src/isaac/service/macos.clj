@@ -37,18 +37,28 @@
 </dict>
 </plist>")
 
+(defn- server-tail-args
+  "Trailing argv after root flags. Only jvm is baked explicitly; default bb
+   omits --runtime so today's plists stay unchanged."
+  [runtime]
+  (if (= "jvm" runtime)
+    ["server" "--runtime" "jvm"]
+    ["server"]))
+
 (defn- program-arguments
   "Packaged installs run the launcher (`isaac server`); dev checkouts use
    `bb --config <repo>/bb.edn -m isaac.main server`."
-  [{:keys [mode isaac-bin bb-bin bb-edn root]}]
-  (case mode
-    :packaged
-    (cond-> [isaac-bin]
-      (some? root) (into ["--root" root])
-      true         (conj "server"))
+  [{:keys [mode isaac-bin bb-bin bb-edn root runtime]}]
+  (let [runtime (or runtime "bb")]
+    (case mode
+      :packaged
+      (into (cond-> [isaac-bin]
+               (some? root) (into ["--root" root]))
+            (server-tail-args runtime))
 
-    :dev
-    [bb-bin "--config" (str bb-edn "/bb.edn") "-m" "isaac.main" "server"]))
+      :dev
+      (into [bb-bin "--config" (str bb-edn "/bb.edn") "-m" "isaac.main"]
+            (server-tail-args runtime)))))
 
 (defn- program-args-xml [args]
   (str/join "\n        " (map #(str "<string>" % "</string>") args)))
@@ -68,12 +78,29 @@
        distinct
        (str/join ":")))
 
-(defn plist-content [{:keys [mode isaac-bin bb-bin bb-edn root log-dir path]}]
+(defn parse-program-arguments
+  "Extract ProgramArguments strings from a launchd plist XML document."
+  [content]
+  (when-let [section (second (re-find #"(?s)<key>ProgramArguments</key>\s*<array>(.*?)</array>" content))]
+    (vec (map second (re-seq #"<string>([^<]*)</string>" section)))))
+
+(defn runtime-from-program-arguments
+  [args]
+  (let [idx (.indexOf ^java.util.List (or args []) "--runtime")]
+    (if (neg? idx) "bb" (nth args (inc idx) "bb"))))
+
+(defn runtime-from-plist
+  "Read the baked server --runtime from an installed plist (default bb)."
+  [content]
+  (runtime-from-program-arguments (parse-program-arguments content)))
+
+(defn plist-content [{:keys [mode isaac-bin bb-bin bb-edn root runtime log-dir path]}]
   (let [args (program-arguments {:mode      mode
                                  :isaac-bin isaac-bin
                                  :bb-bin    bb-bin
                                  :bb-edn    bb-edn
-                                 :root      root})
+                                 :root      root
+                                 :runtime   runtime})
         path (or path (launchd-path {:bb-bin bb-bin :isaac-bin isaac-bin}))]
     (-> plist-template
         (str/replace "{LABEL}" label)
@@ -94,7 +121,7 @@
 (defn- bootstrap-target []
   (str "gui/" (uid)))
 
-(defn install! [{:keys [mode isaac-bin bb-bin bb-edn root] :as opts}]
+(defn install! [{:keys [mode isaac-bin bb-bin bb-edn root runtime] :as opts}]
   (let [log-d   (log-dir)
         plist-p (plist-path)
         fs*     (runtime-fs opts)
@@ -103,6 +130,7 @@
                                 :bb-bin    bb-bin
                                 :bb-edn    bb-edn
                                 :root      root
+                                :runtime   runtime
                                 :log-dir   log-d
                                 :path      (:path opts)})]
     (fs/mkdirs fs* (fs/parent plist-p))
@@ -136,10 +164,11 @@
         fs*     (runtime-fs opts)]
     (if-not (fs/exists? fs* plist-p)
       {:installed? false}
-      (let [result (shell/sh! "launchctl" "print" (service-target))]
+      (let [runtime (runtime-from-plist (fs/slurp fs* plist-p))
+            result  (shell/sh! "launchctl" "print" (service-target))]
         (if (zero? (:exit result))
-          (assoc (parse-status (:out result)) :installed? true)
-          {:installed? true :state "stopped"})))))
+          (assoc (parse-status (:out result)) :installed? true :runtime runtime)
+          {:installed? true :state "stopped" :runtime runtime})))))
 
 (defn logs! [{:keys [follow?] :as opts}]
   (let [log-file (str (log-dir) "/server.log")
