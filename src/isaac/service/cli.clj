@@ -37,15 +37,25 @@
 (defn- install-root [opts options]
   (or (:root options) (:root opts) (:display-root opts)))
 
+(defn- print-subcommand-help
+  "Print usage plus tools.cli's aligned option summary for a subcommand."
+  [usage-line option-spec raw-args]
+  (println usage-line)
+  (when-let [summary (:summary (tools-cli/parse-opts (or raw-args []) option-spec))]
+    (println summary))
+  0)
+
 (defn- unsupported-os [os]
   (binding [*out* *err*]
     (println (str "isaac service is not yet supported on " os)))
   1)
 
 (defn- run-install [opts]
-  (let [{:keys [options errors]} (tools-cli/parse-opts (or (:_raw-args opts) []) install-options)]
+  (let [raw-args (or (:_raw-args opts) [])
+        {:keys [options errors]} (tools-cli/parse-opts raw-args install-options)]
     (cond
-      (:help options) (do (println "Usage: isaac service install [options]") 0)
+      (:help options)
+      (print-subcommand-help "Usage: isaac service install [options]" install-options raw-args)
       (seq errors)    (do (binding [*out* *err*] (doseq [e errors] (println e))) 1)
       :else
       (let [root      (install-root opts options)
@@ -127,13 +137,19 @@
         (if (= "running" (:state result)) 0 1)))))
 
 (defn- run-logs [opts]
-  (let [{:keys [options]} (tools-cli/parse-opts (or (:_raw-args opts) []) logs-options)
-        follow?           (:follow options)
-        result            (macos/logs! {:follow? follow?})]
+  (let [raw-args (or (:_raw-args opts) [])
+        {:keys [options]} (tools-cli/parse-opts raw-args logs-options)]
     (cond
-      follow?           0
-      (:content result) (do (print (:content result)) 0)
-      :else             (do (binding [*out* *err*] (println "log file not found")) 1))))
+      (:help options)
+      (print-subcommand-help "Usage: isaac service logs [options]" logs-options raw-args)
+
+      :else
+      (let [follow? (:follow options)
+            result  (macos/logs! {:follow? follow?})]
+        (cond
+          follow?           0
+          (:content result) (do (print (:content result)) 0)
+          :else             (do (binding [*out* *err*] (println "log file not found")) 1))))))
 
 (def subcommands
   [{:name "install" :summary "Install Isaac as a launchd service" :run run-install}

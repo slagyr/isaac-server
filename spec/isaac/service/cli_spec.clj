@@ -141,6 +141,25 @@
             (should= 0 (:exit result))
             (should (some #(and (= "tail" (first %)) (= "-f" (second %))) @calls))))))
 
+    (it "install --help lists install options"
+      (let [result (run "service install --help")]
+        (should= 0 (:exit result))
+        (should (str/includes? (:out result) "Usage: isaac service install"))
+        (should (str/includes? (:out result) "--runtime"))
+        (should (str/includes? (:out result) "--root"))
+        (should (str/includes? (:out result) "--isaac-bin"))))
+
+    (it "logs --help lists logs options without running tail"
+      (let [calls (atom [])]
+        (binding [shell/*sh* (fn [& args]
+                               (swap! calls conj (vec args))
+                               {:exit 0 :out "" :err ""})]
+          (let [result (run "service logs --help")]
+            (should= 0 (:exit result))
+            (should (str/includes? (:out result) "Usage: isaac service logs"))
+            (should (str/includes? (:out result) "--follow"))
+            (should= [] @calls)))))
+
     (it "service --help prints subcommand help"
       (let [result (run "service --help")]
         (should= 0 (:exit result))
