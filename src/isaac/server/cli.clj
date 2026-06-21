@@ -12,6 +12,7 @@
     [isaac.logger :as log]
     [isaac.nexus :as nexus]
     [isaac.server.app :as app]
+    [isaac.server.runtime :as runtime]
     ))
 
 (defn block!
@@ -75,6 +76,8 @@
   [["-p" "--port N" "Port to listen on (default: 6674)"]
    ["-H" "--host H" "Host to bind to (default: 127.0.0.1)"]
    ["-d" "--dev" "Enable development reload mode"]
+   [nil  "--runtime RUNTIME" "Server runtime: bb (default) or jvm"
+    :default "bb"]
    [nil  "--logs" "Tail and print the log file while the server runs"]
    [nil  "--no-color" "Disable color output for --logs"]
    [nil  "--zebra" "Enable zebra striping for --logs"]
@@ -87,8 +90,16 @@
                    (into {}))
      :errors  errors}))
 
+(defn- dispatch-run [opts raw-args]
+  (if-let [exit (runtime/maybe-trampoline! opts raw-args)]
+    exit
+    (run opts)))
+
 (defn run-fn [opts]
-  (cli-common/standard-run-fn "server" parse-option-map run opts))
+  (let [raw-args (or (:_raw-args opts) [])]
+    (cli-common/standard-run-fn "server" parse-option-map
+      (fn [merged] (dispatch-run merged raw-args))
+      opts)))
 
 ;; ----- :isaac/cli berth implementation -----
 
