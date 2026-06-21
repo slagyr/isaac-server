@@ -10,7 +10,9 @@
                                                        :schema  {:method  {:type :keyword :validations [:present?]}
                                                                  :path    {:type :string :validations [:present?]}
                                                                  :handler {:type :symbol :validations [:present?]}}}}}
-             :isaac.server/comm {:description "Communication channels (Discord, iMessage, ACP, …). Manifest contributions name available impls and carry the impl's :namespace (whose load implements isaac.comm.factory/create for that :type) plus its :extra-schema (extension fields composed into [:comms] slots of that :type). User-instantiated comm slots in the [:comms] config slot also count toward this berth, so `[:registered-in? :isaac.server/comm [:comms]]` accepts both manifest impl ids (the common :type values) and slot ids."
+             :isaac.server/comm {:description "Communication channels (Discord, iMessage, ACP, …). Manifest contributions name available impls and carry the impl's :namespace (whose load implements isaac.comm.factory/create for that :type) plus its :extra-schema (extension fields composed into [:comms] slots of that :type). User-instantiated comm slots in the [:comms] config slot also count toward this berth, so `[:registered-in? :isaac.server/comm [:comms]]` accepts both manifest impl ids (the common :type values) and slot ids. :register-fn wires each live slot into comm-registry so the delivery worker can send outbound replies."
+                                 :register-fn   isaac.comm.registry/register-instance!
+                                 :deregister-fn isaac.comm.registry/deregister-instance!
                                  :schema      {:type       :map
                                                :key-spec   {:type :keyword}
                                                :value-spec {:type    :map
