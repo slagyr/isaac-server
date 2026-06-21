@@ -17,11 +17,22 @@
     [isaac.service.runtime :as service-runtime]
     [isaac.nexus :as nexus]
     [isaac.server.http :as http]
-    [org.httpkit.server :as httpkit]))
+    [org.httpkit.server :as httpkit])
+  (:import
+    (java.time Duration Instant)))
 
 (defonce state (atom nil))
+(defonce ^:private stopping? (atom false))
 
 (declare stop!)
+
+(defn- take-running-state! []
+  (loop []
+    (let [s @state]
+      (cond
+        (nil? s) nil
+        (compare-and-set! state s nil) s
+        :else (recur)))))
 
 (defn running? []
   (some? @state))
@@ -134,7 +145,8 @@
                  :server             server
                  :port               actual
                  :host               host
-                 :start-http-server? start-http-server?}))
+                 :start-http-server? start-http-server?
+                 :started-at         (Instant/now)}))
 
 (defn start!
   "Boot the server. Loads config from :root and commits it (or uses an
@@ -220,26 +232,46 @@
         {:port actual :host host}))))
 
 (defn stop! []
-  (when-let [{:keys [config-source scheduler delivery hail-delivery hail-router host-ctx registries reloader server]} @state]
-    (when delivery
-      (worker/stop! delivery))
-    (stop-optional-service! 'isaac.hail.delivery-worker/stop! hail-delivery)
-    (stop-optional-service! 'isaac.hail.router/stop! hail-router)
-    (service-runtime/stop-all!)
-    (module-loader/shutdown-modules!)
-    (when scheduler
-      (scheduler-core/shutdown! scheduler))
-    (when registries
-      (let [cfg (loader/snapshot "shutdown: current config for teardown reconcile")]
-        (runtime/reconcile! host-ctx cfg nil registries)
-        (runtime/install-config-berths! {:config     nil
-                                         :old-config cfg
-                                         :module-index (:module-index host-ctx)})))
-    (some-> reloader future-cancel)
-    (when config-source
-      (runtime/stop! config-source))
-    (when server
-      (if (fn? server)
-        (server)
-        (httpkit/server-stop! server)))
-    (reset! state nil)))
+  (when (compare-and-set! stopping? false true)
+    (try
+      (when-let [{:keys [config-source scheduler delivery hail-delivery hail-router
+                         host-ctx registries reloader server started-at]}
+                 (take-running-state!)]
+        (log/info :server/shutdown-starting)
+        (when delivery
+          (log/info :server/shutdown-phase :phase :delivery)
+          (worker/stop! delivery))
+        (when hail-delivery
+          (log/info :server/shutdown-phase :phase :hail-delivery)
+          (stop-optional-service! 'isaac.hail.delivery-worker/stop! hail-delivery))
+        (when hail-router
+          (log/info :server/shutdown-phase :phase :hail-router)
+          (stop-optional-service! 'isaac.hail.router/stop! hail-router))
+        (log/info :server/shutdown-phase :phase :services)
+        (service-runtime/stop-all!)
+        (log/info :server/shutdown-phase :phase :modules)
+        (module-loader/shutdown-modules!)
+        (when scheduler
+          (log/info :server/shutdown-phase :phase :scheduler)
+          (scheduler-core/shutdown! scheduler))
+        (when registries
+          (log/info :server/shutdown-phase :phase :config-reconcile)
+          (let [cfg (loader/snapshot "shutdown: current config for teardown reconcile")]
+            (runtime/reconcile! host-ctx cfg nil registries)
+            (runtime/install-config-berths! {:config       nil
+                                             :old-config   cfg
+                                             :module-index (:module-index host-ctx)})))
+        (some-> reloader future-cancel)
+        (when config-source
+          (log/info :server/shutdown-phase :phase :config-source)
+          (runtime/stop! config-source))
+        (when server
+          (log/info :server/shutdown-phase :phase :http)
+          (if (fn? server)
+            (server)
+            (httpkit/server-stop! server)))
+        (let [uptime-ms (when started-at
+                          (.toMillis (Duration/between started-at (Instant/now))))]
+          (log/info :server/stopped :uptime-ms uptime-ms)))
+      (finally
+        (reset! stopping? false)))))

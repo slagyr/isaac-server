@@ -13,6 +13,14 @@
 (defn babashka? []
   (some? (System/getProperty "babashka.version")))
 
+(defn runtime-name []
+  (if (babashka?) "bb" "jvm"))
+
+(defn runtime-version []
+  (if (babashka?)
+    (System/getProperty "babashka.version")
+    (System/getProperty "java.version")))
+
 (defn normalize-runtime [runtime]
   (if (= "jvm" runtime) :jvm :bb))
 

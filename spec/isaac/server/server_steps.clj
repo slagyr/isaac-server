@@ -21,6 +21,7 @@
     [isaac.main :as main]
     [isaac.spec-helper :as helper]
     [isaac.server.app :as app]
+    [isaac.server.lifecycle :as lifecycle]
     [isaac.server.http :as server-http]
     [isaac.server.routes :as routes]
     [org.httpkit.client :as http]
@@ -245,7 +246,8 @@
     b))
 
 (defn stop-server! []
-  (app/stop!))
+  (app/stop!)
+  (lifecycle/reset-hello!))
 
 (g/after-scenario stop-server!)
 
@@ -370,6 +372,8 @@
     (g/assoc! :server-handler-opts {:cfg-fn    (fn [] (or (some-> app/state deref :cfg deref) cfg-map))
                                     :root runtime-state
                                     :home      home})
+    (lifecycle/reset-hello!)
+    (lifecycle/emit-hello! runtime-state (:dev start-opts))
     (when-let [{:keys [port]} (app/start! start-opts)]
       (g/assoc! :server-port port))))
 

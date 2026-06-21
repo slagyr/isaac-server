@@ -7,6 +7,30 @@
 
 (describe "server runtime dispatch"
 
+  (describe "runtime-name"
+
+    (it "is bb under babashka"
+      (with-redefs [sut/babashka? (constantly true)]
+        (should= "bb" (sut/runtime-name))))
+
+    (it "is jvm on the JVM"
+      (with-redefs [sut/babashka? (constantly false)]
+        (should= "jvm" (sut/runtime-name)))))
+
+  (describe "runtime-version"
+
+    (it "reads babashka.version under babashka"
+      (let [prop "babashka.version"]
+        (try
+          (System/setProperty prop "1.3.190")
+          (with-redefs [sut/babashka? (constantly true)]
+            (should= "1.3.190" (sut/runtime-version)))
+          (finally (System/clearProperty prop)))))
+
+    (it "reads java.version on the JVM"
+      (with-redefs [sut/babashka? (constantly false)]
+        (should= (System/getProperty "java.version") (sut/runtime-version)))))
+
   (describe "babashka?"
 
     (it "is true when babashka.version is set"

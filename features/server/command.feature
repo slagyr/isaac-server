@@ -7,12 +7,12 @@ Feature: Server startup command
       | log.output        | memory |
       | server.hot-reload | false  |
 
-  Scenario: server command logs boot-starting before startup
+  Scenario: server command logs hello before startup
     When the server command is run on port 9876
     Then the log has entries matching:
-      | level | event                 |
-      | :info | :server/boot-starting |
-      | :info | :server/started       |
+      | level | event           | runtime |
+      | :info | :server/hello   | #*      |
+      | :info | :server/started |         |
 
   Scenario: server command logs startup with host and port
     When the server command is run on port 9876

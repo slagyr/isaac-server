@@ -350,4 +350,24 @@
         (sut/stop!))
       (should= ::source @stopped)))
 
+  (it "logs shutdown-starting, phases, and stopped on teardown"
+    (with-redefs [scheduler-core/create    (fn [_] ::scheduler)
+                  scheduler-core/start!    identity
+                  scheduler-core/shutdown! (fn [_] nil)
+                  worker/start!            (fn [_] ::worker)
+                  worker/stop!             (fn [_] nil)]
+      (sut/start! {:host "127.0.0.1" :port 0 :cfg {}})
+      (sut/stop!))
+    (let [events (mapv :event @log/captured-logs)]
+      (should (some #{:server/shutdown-starting} events))
+      (should (some #{:server/shutdown-phase} events))
+      (should (some #{:server/stopped} events)))
+
+  (it "stop! is idempotent when called twice"
+    (sut/start! {:host "127.0.0.1" :port 0 :cfg {}})
+    (sut/stop!)
+    (let [count-before (count @log/captured-logs)]
+      (sut/stop!)
+      (should= count-before (count @log/captured-logs)))))
+
   )

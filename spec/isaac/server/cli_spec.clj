@@ -8,6 +8,7 @@
     [isaac.module.loader :as module-loader]
     [isaac.server.app :as app]
     [isaac.server.cli :as sut]
+    [isaac.server.runtime :as runtime]
     [isaac.spec-helper :as helper]
     [speclj.core :refer :all]))
 
@@ -87,13 +88,23 @@
       (let [output (with-out-str (sut/run {:port "5000"}))]
         (should (re-find #"5000" output))))
 
-    (it "logs boot-starting before server/started"
+    (it "logs hello before server/started"
       (with-out-str (sut/run {:port "7000" :host "0.0.0.0"}))
-      (let [events (filter #(#{:server/boot-starting :server/started} (:event %))
+      (let [events (filter #(#{:server/hello :server/started} (:event %))
                            @log/captured-logs)]
         (should= 2 (count events))
-        (should= :server/boot-starting (:event (first events)))
+        (should= :server/hello (:event (first events)))
         (should= :server/started (:event (second events)))))
+
+    (it "logs hello with runtime, root, dev?, and pid"
+      (with-out-str (sut/run {:port "7000"}))
+      (let [hello (first (filter #(= :server/hello (:event %)) @log/captured-logs))]
+        (should-not-be-nil hello)
+        (should (string? (:version hello)))
+        (should= (runtime/runtime-name) (:runtime hello))
+        (should (string? (:root hello)))
+        (should= false (:dev hello))
+        (should (number? (:pid hello)))))
 
     (it "logs server/started with host and port"
       (with-out-str (sut/run {:port "7000" :host "0.0.0.0"}))
