@@ -14,13 +14,37 @@ Feature: isaac service — macOS LaunchAgent management
     And the operating system is "Mac OS X"
     And launchctl is stubbed
 
-  Scenario: install sets PATH so launchd can find bb and git
-    Given "isaac" resolves to "/usr/local/bin/isaac"
-    And "bb" resolves to "/usr/local/bin/bb"
+  Scenario: install captures the caller PATH for packaged installs
+    Given "isaac" resolves to "/opt/marigold/bin/isaac"
+    And "bb" resolves to "/opt/marigold/bin/bb"
+    And the current process PATH is "/opt/marigold/bin:/opt/starboard/bin:/usr/bin:/bin:/Users/cordelia/.longwave/bin"
     When isaac is run with "service install"
     Then the plist contains:
-      | path                        | value                            |
-      | EnvironmentVariables.PATH   | /usr/local/bin:/usr/bin:/bin    |
+      | path                      | value                                                                    |
+      | EnvironmentVariables.PATH | /opt/marigold/bin:/opt/starboard/bin:/usr/bin:/bin:/Users/cordelia/.longwave/bin |
+    And the exit code is 0
+
+  Scenario: install captures the caller PATH for dev-checkout installs
+    Given "bb" resolves to "/opt/marigold/bin/bb"
+    And the current process PATH is "/opt/marigold/bin:/opt/starboard/bin:/usr/bin:/bin:/Users/oscar/.signal-kit/bin"
+    When isaac is run with "service install --isaac-dir /projects/marigold-bridge"
+    Then the file "~/Library/LaunchAgents/com.slagyr.isaac.plist" exists
+    And the plist contains:
+      | path                      | value                                                                 |
+      | ProgramArguments[0]       | /opt/marigold/bin/bb                                                  |
+      | ProgramArguments[4]       | isaac.main                                                            |
+      | ProgramArguments[5]       | server                                                                |
+      | EnvironmentVariables.PATH | /opt/marigold/bin:/opt/starboard/bin:/usr/bin:/bin:/Users/oscar/.signal-kit/bin |
+    And the exit code is 0
+
+  Scenario: --path overrides the caller PATH
+    Given "isaac" resolves to "/opt/marigold/bin/isaac"
+    And "bb" resolves to "/opt/marigold/bin/bb"
+    And the current process PATH is "/opt/marigold/bin:/usr/bin:/bin"
+    When isaac is run with "service install --path /opt/quartz/bin:/usr/bin:/bin"
+    Then the plist contains:
+      | path                      | value                         |
+      | EnvironmentVariables.PATH | /opt/quartz/bin:/usr/bin:/bin |
     And the exit code is 0
 
   Scenario: install uses the packaged launcher when isaac is on PATH
@@ -43,12 +67,11 @@ Feature: isaac service — macOS LaunchAgent management
     When isaac is run with "service install --isaac-dir /projects/isaac"
     Then the file "~/Library/LaunchAgents/com.slagyr.isaac.plist" exists
     And the plist contains:
-      | path                      | value                         |
-      | Label                     | com.slagyr.isaac              |
-      | ProgramArguments[0]       | /opt/homebrew/bin/bb          |
-      | ProgramArguments[4]       | isaac.main                    |
-      | ProgramArguments[5]       | server                        |
-      | EnvironmentVariables.PATH | /opt/homebrew/bin:/usr/bin:/bin |
+      | path                | value                |
+      | Label               | com.slagyr.isaac     |
+      | ProgramArguments[0] | /opt/homebrew/bin/bb |
+      | ProgramArguments[4] | isaac.main           |
+      | ProgramArguments[5] | server               |
     And launchctl was called with "bootstrap"
     And the stdout contains "Resolved bb: /opt/homebrew/bin/bb"
     And the exit code is 0

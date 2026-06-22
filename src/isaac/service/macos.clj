@@ -94,6 +94,15 @@
        distinct
        (str/join ":")))
 
+(defn plist-path
+  "PATH baked into the LaunchAgent plist: explicit override, else caller
+   shell PATH, else synthesized launchd-path."
+  [{:keys [path caller-path bb-bin isaac-bin]}]
+  (or path
+      (when-let [p (when (string? caller-path) (str/trim caller-path))]
+        (when (seq p) p))
+      (launchd-path {:bb-bin bb-bin :isaac-bin isaac-bin})))
+
 (defn parse-program-arguments
   "Extract ProgramArguments strings from a launchd plist XML document."
   [content]
@@ -119,22 +128,25 @@
   [content]
   (runtime-from-program-arguments (parse-program-arguments content)))
 
-(defn plist-content [{:keys [mode isaac-bin bb-bin bb-edn root runtime log-dir path]}]
-  (let [args (program-arguments {:mode      mode
-                                 :isaac-bin isaac-bin
-                                 :bb-bin    bb-bin
-                                 :bb-edn    bb-edn
-                                 :root      root
-                                 :runtime   runtime})
-        path (or path (launchd-path {:bb-bin bb-bin :isaac-bin isaac-bin}))]
+(defn plist-content [{:keys [mode isaac-bin bb-bin bb-edn root runtime log-dir path caller-path]}]
+  (let [args     (program-arguments {:mode      mode
+                                     :isaac-bin isaac-bin
+                                     :bb-bin    bb-bin
+                                     :bb-edn    bb-edn
+                                     :root      root
+                                     :runtime   runtime})
+        env-path (plist-path {:path        path
+                              :caller-path caller-path
+                              :bb-bin      bb-bin
+                              :isaac-bin   isaac-bin})]
     (-> plist-template
         (str/replace "{LABEL}" label)
         (str/replace "{PROGRAM_ARGS}" (program-args-xml args))
-        (str/replace "{PATH}" path)
+        (str/replace "{PATH}" env-path)
         (str/replace "{LOG_DIR}" log-dir))))
 
 (defn- user-home [] (root/user-home))
-(defn- plist-path [] (str (user-home) "/Library/LaunchAgents/" label ".plist"))
+(defn- plist-file-path [] (str (user-home) "/Library/LaunchAgents/" label ".plist"))
 (defn- log-dir []   (str (user-home) "/Library/Logs/isaac"))
 
 (defn- uid []
@@ -148,7 +160,7 @@
 
 (defn install! [{:keys [mode isaac-bin bb-bin bb-edn root runtime] :as opts}]
   (let [log-d   (log-dir)
-        plist-p (plist-path)
+        plist-p (plist-file-path)
         fs*     (runtime-fs opts)
         content (plist-content {:mode      mode
                                 :isaac-bin isaac-bin
@@ -164,14 +176,14 @@
     (shell/sh! "launchctl" "bootstrap" (bootstrap-target) plist-p)))
 
 (defn uninstall! [opts]
-  (let [plist-p (plist-path)
+  (let [plist-p (plist-file-path)
         fs*     (runtime-fs opts)]
     (when (fs/exists? fs* plist-p)
       (shell/sh! "launchctl" "bootout" (service-target))
       (fs/delete fs* plist-p))))
 
 (defn start! [_opts]
-  (shell/sh! "launchctl" "bootstrap" (bootstrap-target) (plist-path)))
+  (shell/sh! "launchctl" "bootstrap" (bootstrap-target) (plist-file-path)))
 
 (defn stop! [_opts]
   (shell/sh! "launchctl" "bootout" (service-target)))
@@ -185,7 +197,7 @@
    :last-exit  (second (re-find #"last exit code\s*=\s*(-?\d+)" output))})
 
 (defn status! [opts]
-  (let [plist-p (plist-path)
+  (let [plist-p (plist-file-path)
         fs*     (runtime-fs opts)]
     (if-not (fs/exists? fs* plist-p)
       {:installed? false}

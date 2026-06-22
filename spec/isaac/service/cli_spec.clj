@@ -5,6 +5,8 @@
     [isaac.config.root :as root]
     [isaac.main :as main]
     [isaac.nexus :as nexus]
+    [isaac.service.cli :as cli]
+    [isaac.service.macos :as macos]
     [isaac.shell :as shell]
     [speclj.core :refer :all]))
 
@@ -148,7 +150,50 @@
         (should (str/includes? (:out result) "Usage: isaac service install"))
         (should (str/includes? (:out result) "--runtime"))
         (should (str/includes? (:out result) "--root"))
-        (should (str/includes? (:out result) "--isaac-bin"))))
+        (should (str/includes? (:out result) "--isaac-bin"))
+        (should (str/includes? (:out result) "--path"))))
+
+    (it "install bakes caller PATH into the plist by default"
+      (binding [cli/*caller-path* "/opt/marigold/bin:/opt/starboard/bin:/usr/bin:/bin"]
+        (binding [shell/*sh* (fn [& args]
+                              (case (vec args)
+                                ["which" "isaac"] {:exit 0 :out "/opt/marigold/bin/isaac\n" :err ""}
+                                ["which" "bb"]    {:exit 0 :out "/opt/marigold/bin/bb\n" :err ""}
+                                {:exit 0 :out "" :err ""}))]
+          (let [result (run "service install")]
+            (should= 0 (:exit result))
+            (let [plist (fs/slurp (nexus/get :fs) "/test/home/Library/LaunchAgents/com.slagyr.isaac.plist")]
+              (should (str/includes? plist
+                                     "<string>/opt/marigold/bin:/opt/starboard/bin:/usr/bin:/bin</string>")))))))
+
+    (it "install falls back to launchd-path when caller PATH is blank"
+      (binding [cli/*caller-path* ""]
+        (binding [shell/*sh* (fn [& args]
+                               (case (vec args)
+                                 ["which" "isaac"] {:exit 0 :out "/usr/local/bin/isaac\n" :err ""}
+                                 ["which" "bb"]    {:exit 0 :out "/usr/local/bin/bb\n" :err ""}
+                                 {:exit 0 :out "" :err ""}))]
+          (let [result (run "service install")]
+            (should= 0 (:exit result))
+            (should= (macos/launchd-path {:bb-bin    "/usr/local/bin/bb"
+                                          :isaac-bin "/usr/local/bin/isaac"})
+                     (second (re-find #"<key>PATH</key>\s*<string>([^<]*)</string>"
+                                      (fs/slurp (nexus/get :fs)
+                                                "/test/home/Library/LaunchAgents/com.slagyr.isaac.plist"))))))
+
+    (it "install --path overrides caller PATH"
+      (binding [cli/*caller-path* "/opt/marigold/bin:/usr/bin:/bin"]
+        (binding [shell/*sh* (fn [& args]
+                              (case (vec args)
+                                ["which" "isaac"] {:exit 0 :out "/opt/marigold/bin/isaac\n" :err ""}
+                                ["which" "bb"]    {:exit 0 :out "/opt/marigold/bin/bb\n" :err ""}
+                                {:exit 0 :out "" :err ""}))]
+          (let [result (run "service install --path /opt/quartz/bin:/usr/bin:/bin")]
+            (should= 0 (:exit result))
+            (should= "/opt/quartz/bin:/usr/bin:/bin"
+                     (second (re-find #"<key>PATH</key>\s*<string>([^<]*)</string>"
+                                      (fs/slurp (nexus/get :fs)
+                                                "/test/home/Library/LaunchAgents/com.slagyr.isaac.plist"))))))))
 
     (it "logs --help lists logs options without running tail"
       (let [calls (atom [])]
@@ -198,4 +243,4 @@
     (it "status prints not supported message"
       (let [result (run "service status")]
         (should= 1 (:exit result))
-        (should (str/includes? (:err result) "not yet supported on Linux"))))))
+        (should (str/includes? (:err result) "not yet supported on Linux"))))))))

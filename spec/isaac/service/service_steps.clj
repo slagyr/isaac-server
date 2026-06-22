@@ -3,9 +3,11 @@
     [clojure.string :as str]
     [clojure.data.xml :as xml]
     [gherclj.core :as g :refer [defgiven defthen helper!]]
+    [isaac.foundation.cli-steps :as cli-steps]
     [isaac.fs :as fs]
     [isaac.config.root :as root]
-    [isaac.nexus :as nexus]))
+    [isaac.nexus :as nexus]
+    [isaac.service.cli :as service-cli]))
 
 (helper! isaac.service.service-steps)
 
@@ -115,6 +117,16 @@
   (when-not (g/get :sh-fn)
     (g/assoc! :sh-fn (sh-fn))))
 
+(defn current-process-path-is [path]
+  (g/assoc! :process-path path))
+
+(cli-steps/register-isaac-run-wrapper!
+  (fn [thunk]
+    (if-let [path (g/get :process-path)]
+      (binding [service-cli/*caller-path* path]
+        (thunk))
+      (thunk))))
+
 (defn sh-was-called-with [expected]
   (let [calls   (or (g/get :sh-calls) [])
         pattern (str/trim expected)]
@@ -152,6 +164,8 @@
 (defgiven "{cmd:string} resolves to {path:string}" isaac.service.service-steps/bb-resolves-to)
 
 (defgiven "{cmd:string} is not on PATH" isaac.service.service-steps/bb-not-on-path)
+
+(defgiven "the current process PATH is {path:string}" isaac.service.service-steps/current-process-path-is)
 
 (defthen "the plist contains:" isaac.service.service-steps/plist-contains)
 

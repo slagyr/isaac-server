@@ -7,11 +7,17 @@
     [isaac.service.macos :as macos]
     [isaac.shell :as shell]))
 
+(def ^:dynamic *caller-path*
+  "Caller shell PATH for service install (tests bind this). nil → read
+   (System/getenv \"PATH\")."
+  nil)
+
 (def ^:private install-options
   [[nil "--isaac-bin PATH" "Path to packaged isaac launcher (default: resolved via which)"]
    [nil "--bb-bin PATH" "Path to bb binary for dev checkout (default: resolved via which)"]
    [nil "--isaac-dir PATH" "Path to Isaac repo root for dev checkout (default: current directory)"]
    [nil "--root PATH" "Isaac root directory passed to the server"]
+   [nil "--path PATH" "PATH for the launchd service (default: caller shell PATH)"]
    [nil "--runtime RUNTIME" "Server runtime baked into the plist: bb (default) or jvm"
     :default "bb"]
    ["-h" "--help" "Show help"]])
@@ -36,6 +42,15 @@
 
 (defn- install-root [opts options]
   (or (:root options) (:root opts) (:display-root opts)))
+
+(defn- shell-path []
+  (or *caller-path* (System/getenv "PATH")))
+
+(defn- install-plist-path [options isaac-bin bb-bin]
+  (macos/plist-path {:path        (:path options)
+                     :caller-path (shell-path)
+                     :bb-bin      bb-bin
+                     :isaac-bin   isaac-bin}))
 
 (defn- print-subcommand-help
   "Print usage plus tools.cli's aligned option summary for a subcommand."
@@ -78,7 +93,8 @@
                                        :isaac-bin isaac-bin
                                        :bb-bin    bb-bin
                                        :root      root
-                                       :runtime   runtime}
+                                       :runtime   runtime
+                                       :path      (install-plist-path options isaac-bin bb-bin)}
                                 (:fs opts) (assoc :fs (:fs opts))))
               (println (str "Resolved launcher: " isaac-bin))
               (println (str "Resolved bb: " bb-bin))
@@ -97,7 +113,8 @@
                 (macos/install! (cond-> {:mode    :dev
                                          :bb-bin  bb-bin
                                          :bb-edn  bb-edn
-                                         :runtime runtime}
+                                         :runtime runtime
+                                         :path    (install-plist-path options nil bb-bin)}
                                   (:fs opts) (assoc :fs (:fs opts))))
                 (println (str "Resolved bb: " bb-bin))
                 (println "Service installed: com.slagyr.isaac")
