@@ -38,23 +38,39 @@
 </plist>")
 
 (defn- server-tail-args
-  "Trailing argv after root flags. Only jvm is baked explicitly; default bb
+  "Trailing argv after root flags for bb (and dev jvm trampoline). Default bb
    omits --runtime so today's plists stay unchanged."
   [runtime]
   (if (= "jvm" runtime)
     ["server" "--runtime" "jvm"]
     ["server"]))
 
+(defn- jvm-packaged-exec-cmd
+  "Single sh -c string: exec clojure with a fresh -Sdeps from isaac modules deps."
+  [{:keys [isaac-bin root]}]
+  (str "exec clojure -Sdeps \"$(" isaac-bin
+       (when root (str " --root " root))
+       " modules deps --edn)\" -M -m isaac.main"
+       (when root (str " --root " root))
+       " server"))
+
+(defn- jvm-packaged-program-arguments
+  "launchd cannot substitute in ProgramArguments; sh -c runs modules deps each boot."
+  [{:keys [isaac-bin root]}]
+  ["/bin/sh" "-c" (jvm-packaged-exec-cmd {:isaac-bin isaac-bin :root root})])
+
 (defn- program-arguments
-  "Packaged installs run the launcher (`isaac server`); dev checkouts use
-   `bb --config <repo>/bb.edn -m isaac.main server`."
+  "Packaged bb runs the launcher (`isaac server`); packaged jvm execs clojure via
+   sh wrapper; dev checkouts use `bb --config <repo>/bb.edn -m isaac.main`."
   [{:keys [mode isaac-bin bb-bin bb-edn root runtime]}]
   (let [runtime (or runtime "bb")]
     (case mode
       :packaged
-      (into (cond-> [isaac-bin]
-               (some? root) (into ["--root" root]))
-            (server-tail-args runtime))
+      (if (= "jvm" runtime)
+        (jvm-packaged-program-arguments {:isaac-bin isaac-bin :root root})
+        (into (cond-> [isaac-bin]
+                 (some? root) (into ["--root" root]))
+              (server-tail-args runtime)))
 
       :dev
       (into [bb-bin "--config" (str bb-edn "/bb.edn") "-m" "isaac.main"]
@@ -86,11 +102,20 @@
 
 (defn runtime-from-program-arguments
   [args]
-  (let [idx (.indexOf ^java.util.List (or args []) "--runtime")]
-    (if (neg? idx) "bb" (nth args (inc idx) "bb"))))
+  (cond
+    (and (= "/bin/sh" (first args))
+         (some #(and (string? %)
+                     (str/includes? % "clojure")
+                     (str/includes? % "-m isaac.main"))
+               args))
+    "jvm"
+
+    :else
+    (let [idx (.indexOf ^java.util.List (or args []) "--runtime")]
+      (if (neg? idx) "bb" (nth args (inc idx) "bb")))))
 
 (defn runtime-from-plist
-  "Read the baked server --runtime from an installed plist (default bb)."
+  "Infer installed server runtime from ProgramArguments (default bb)."
   [content]
   (runtime-from-program-arguments (parse-program-arguments content)))
 

@@ -58,14 +58,27 @@
                                       :log-dir   "/test/home/Library/Logs/isaac"})]
         (should (str/includes? plist "<string>--root</string>\n        <string>/var/isaac</string>\n        <string>server</string>"))))
 
-    (it "bakes --runtime jvm after server for packaged installs"
+    (it "uses sh wrapper with direct clojure for packaged jvm installs"
       (let [plist (sut/plist-content {:mode      :packaged
                                       :isaac-bin "/usr/local/bin/isaac"
                                       :bb-bin    "/usr/local/bin/bb"
                                       :runtime   "jvm"
                                       :log-dir   "/test/home/Library/Logs/isaac"})]
-        (should (str/includes? plist "<string>server</string>\n        <string>--runtime</string>\n        <string>jvm</string>"))
-        (should-not (str/includes? plist "<string>--runtime</string>\n        <string>bb</string>"))))
+        (should (str/includes? plist "<string>/bin/sh</string>\n        <string>-c</string>"))
+        (should (str/includes? plist "exec clojure -Sdeps"))
+        (should (str/includes? plist "/usr/local/bin/isaac modules deps --edn"))
+        (should (str/includes? plist "-M -m isaac.main server"))
+        (should-not (str/includes? plist "--runtime"))))
+
+    (it "embeds --root in the jvm sh wrapper when provided"
+      (let [plist (sut/plist-content {:mode      :packaged
+                                      :isaac-bin "/usr/local/bin/isaac"
+                                      :bb-bin    "/usr/local/bin/bb"
+                                      :root      "/var/isaac"
+                                      :runtime   "jvm"
+                                      :log-dir   "/test/home/Library/Logs/isaac"})]
+        (should (str/includes? plist "/usr/local/bin/isaac --root /var/isaac modules deps --edn"))
+        (should (str/includes? plist "-m isaac.main --root /var/isaac server"))))
 
     (it "omits --runtime for default bb packaged installs"
       (let [plist (sut/plist-content {:mode      :packaged

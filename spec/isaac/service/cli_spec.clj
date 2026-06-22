@@ -90,7 +90,7 @@
           (should= 0 (:exit result))
           (should (str/includes? (:out result) "running")))))
 
-    (it "install --runtime jvm bakes the flag into the plist"
+    (it "install --runtime jvm writes a direct-clojure sh-wrapper plist"
       (binding [shell/*sh* (fn [& args]
                              (case (vec args)
                                ["which" "isaac"] {:exit 0 :out "/usr/local/bin/isaac\n" :err ""}
@@ -99,7 +99,8 @@
         (let [result (run "service install --runtime jvm")]
           (should= 0 (:exit result))
           (let [plist (fs/slurp (nexus/get :fs) "/test/home/Library/LaunchAgents/com.slagyr.isaac.plist")]
-            (should (re-find #"server.*--runtime.*jvm" (str/replace plist #"\s+" " ")))))))
+            (should (re-find #"/bin/sh.*-c.*exec clojure -Sdeps" (str/replace plist #"\s+" " ")))
+            (should-not (re-find #"server.*--runtime.*jvm" (str/replace plist #"\s+" " ")))))))
 
     (it "status reports installed runtime from the plist"
       (binding [shell/*sh* (fn [& args]
