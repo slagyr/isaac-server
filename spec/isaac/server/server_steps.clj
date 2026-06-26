@@ -604,10 +604,6 @@
 
 ;; region ----- Routing -----
 
-(defgiven "config:" isaac.server.server-steps/configure
-  "Applies server harness settings from a key/value table (log.output,
-   server.* keys, bind-server-port).")
-
 (defwhen "the isaac EDN file {path:string} is removed" isaac.server.server-steps/isaac-edn-file-removed
   "Deletes the EDN file at <root>/.isaac/<path> and fires a config-change
    notification so a running server's hot-reload processes the removal.")

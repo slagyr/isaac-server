@@ -37,13 +37,13 @@
     {:type :wildcard}
 
     (str/starts-with? s "#\"")
-    (if-let [[_ pattern name] (re-matches #"#\"(.+)\":(\w+)" s)]
+    (if-let [[_ pattern name] (re-matches #"#\"(.+)\":([\w-]+)" s)]
       {:type :regex-capture :pattern (re-pattern (str "(?s)" pattern)) :name name}
       (let [[_ pattern] (re-matches #"#\"(.+)\"" s)]
         {:type :regex :pattern (re-pattern (str "(?s)" pattern))}))
 
-    (re-matches #"#(\w+)" s)
-    {:type :ref :name (second (re-matches #"#(\w+)" s))}
+    (re-matches #"#([\w-]+)" s)
+    {:type :ref :name (second (re-matches #"#([\w-]+)" s))}
 
     (re-matches #"-?\d+" s)
     {:type :literal :value (parse-long s)}
@@ -170,6 +170,13 @@
                  (inc row-num)
                  (merge captures (:captures result))
                  (into failures (map #(str "Row " row-num ": " %) (:errors result)))))))))
+
+(defn match-value
+  "Match a single expected cell against an actual value.
+   Supports step_tables DSL (#\"regex\", #ref, wildcards, literals).
+   Returns {:match bool :capture map}."
+  [expected-text actual & {:keys [captures]}]
+  (match-cell (parse-cell expected-text) actual (or captures {})))
 
 (defn match-object
   "Match a vertical key|value table against a single object.
