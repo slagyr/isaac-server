@@ -27,10 +27,10 @@
                                                                         :exclusions [io.github.slagyr/isaac]}
                             org.clojure/data.xml                       {:mvn/version "0.0.8"}
                             marigold.bridge/marigold.bridge            {:git/url   "https://github.com/slagyr/isaac-foundation.git"
-                                                                        :git/sha   "b0a519616d287d973d9b81ff4d79caff1a451128"
+                                                                        :git/sha   "eb3bcb0785c4e86d9e8c032c26aa7b4341b9f04d"
                                                                         :deps/root "modules/marigold.bridge"}
                             marigold.longwave/marigold.longwave        {:git/url   "https://github.com/slagyr/isaac-foundation.git"
-                                                                        :git/sha   "b0a519616d287d973d9b81ff4d79caff1a451128"
+                                                                        :git/sha   "eb3bcb0785c4e86d9e8c032c26aa7b4341b9f04d"
                                                                         :deps/root "modules/marigold.longwave"}}}
 
   :spec      {:main-opts ["-m" "speclj.main" "-c" "-D" "spec"]}

@@ -39,5 +39,5 @@ Feature: Server Dev Reload
     When the server command is run with args "--dev"
     Then the log has entries matching:
       | level | event                    |
-      | :info | :server/started          |
       | :info | :server/dev-mode-enabled |
+      | :info | :server/started          |
