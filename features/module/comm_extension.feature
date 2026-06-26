@@ -8,7 +8,7 @@ Feature: Comm extension
 
   Scenario: Multiple comm instances of the same :type coexist
     Given an empty Isaac root at "/tmp/isaac"
-    And config:
+    And server config:
       | key              | value  |
       | bind-server-port | false  |
       | log.output       | memory |

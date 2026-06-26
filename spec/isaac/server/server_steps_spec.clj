@@ -99,7 +99,7 @@
     (fs/mkdirs (nexus/get :fs) (str test-root "/config"))
     (fs/spit (nexus/get :fs) (str test-root "/config/isaac.edn")
              (pr-str {:comms {(keyword marigold/longwave) {:token "shh" :name marigold/captain}}}))
-    (sut/configure {:headers ["key" "value"]
+    (sut/server-config-applied {:headers ["key" "value"]
                     :rows    [[(str "comms." marigold/longwave ".token") "#delete"]]})
     (should= {:comms {(keyword marigold/longwave) {:name marigold/captain}}
               :key   "value"}

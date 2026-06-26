@@ -4,14 +4,14 @@ Feature: Server Dev Reload
 
   Background:
     Given an Isaac root at "target/test-state"
-    And config:
+    And server config:
       | key               | value  |
       | log.output        | memory |
       | server.hot-reload | false  |
 
   Scenario: Dev mode wraps the root handler with refresh
     Given environment variable "ISAAC_DEV" is "true"
-    And config:
+    And server config:
       | key         | value |
       | server.port | 0     |
     And the Isaac server is started
@@ -22,7 +22,7 @@ Feature: Server Dev Reload
 
   Scenario: Non-dev mode does not reload
     Given environment variable "ISAAC_DEV" is "false"
-    And config:
+    And server config:
       | key         | value |
       | server.port | 0     |
     And the Isaac server is started
@@ -33,7 +33,7 @@ Feature: Server Dev Reload
 
   Scenario: --dev CLI flag enables dev mode, overriding the env
     Given environment variable "ISAAC_DEV" is "false"
-    And config:
+    And server config:
       | key         | value |
       | server.port | 0     |
     When the server command is run with args "--dev"

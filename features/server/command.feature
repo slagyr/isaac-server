@@ -2,7 +2,7 @@ Feature: Server startup command
   Isaac can be started as an HTTP server via the server command.
 
   Background:
-    Given config:
+    Given server config:
       | key               | value  |
       | log.output        | memory |
       | server.hot-reload | false  |

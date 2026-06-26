@@ -5,7 +5,7 @@ Feature: Module activation
 
   Scenario: Comm slot starts when configured at boot
     Given an empty Isaac root at "/tmp/isaac"
-    And config:
+    And server config:
       | key              | value  |
       | bind-server-port | false  |
       | log.output       | memory |
@@ -26,7 +26,7 @@ Feature: Module activation
 
   Scenario: Declared module is activated during server boot even without a slot
     Given an empty Isaac root at "/tmp/isaac"
-    And config:
+    And server config:
       | key              | value  |
       | bind-server-port | false  |
       | log.output       | memory |
@@ -43,7 +43,7 @@ Feature: Module activation
 
   Scenario: Module activation failure surfaces a structured error
     Given an empty Isaac root at "/tmp/isaac"
-    And config:
+    And server config:
       | key              | value  |
       | bind-server-port | false  |
       | log.output       | memory |

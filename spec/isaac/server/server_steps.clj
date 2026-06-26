@@ -7,6 +7,7 @@
     [isaac.config.loader :as loader]
     [isaac.config.runtime :as runtime]
     [isaac.config.server-config :as srv-config]
+    [isaac.foundation.harness-config-steps :as fconfig]
     [isaac.foundation.fs-steps :as ffs]
     [isaac.foundation.root-steps :as froot]
     [isaac.server.test-store]
@@ -93,10 +94,6 @@
                          (if (map? parent)
                            (assoc-in m parent-path (dissoc parent leaf))
                            m))))
-
-(defn- config-rows [table]
-  (cond-> (:rows table)
-    (seq (:headers table)) (conj (:headers table))))
 
 (defn- server-fs []
   (or (g/get :mem-fs)
@@ -225,19 +222,6 @@
       (load!)
       cfg)))
 
-(defn- persist-config-entry! [k v]
-  (when-let [_ (g/get :root)]
-    (with-server-fs
-      (fn []
-        (let [path    (config-file-path)
-              fs*     (server-fs)
-              current (if (fs/exists? fs* path) (edn/read-string (fs/slurp fs* path)) {})
-              updated (if (delete-sentinel? v)
-                        (dissoc-in current (config-path k))
-                        (assoc-in current (config-path k) (parse-config-value v)))]
-          (fs/mkdirs fs* (fs/parent path))
-          (fs/spit   fs* path (pr-str updated)))))))
-
 ;; region ----- Setup -----
 
 (defn- deep-merge [a b]
@@ -251,21 +235,30 @@
 
 (g/after-scenario stop-server!)
 
-(defn configure [table]
-  (doseq [[k v] (config-rows table)]
-    (if (= "log.output" k)
-      (case v
-         "memory" (do (log/set-output! :memory)
-                      (log/clear-entries!))
-         (do (log/set-log-file! v)
-             (log/set-output! :file)))
-      (if (= "bind-server-port" k)
+(defn server-config-applied
+  "Server harness overlay: bind-server-port, in-memory :server-config, and
+   file-backed log.output. Persists dotted keys via the foundation helper."
+  [table]
+  (doseq [[k v] (fconfig/config-rows table)]
+    (when-not (or (str/blank? (str k)) (= "key" k))
+      (cond
+        (= "log.output" k)
+        (case v
+          "memory" (do (log/set-output! :memory)
+                       (log/clear-entries!))
+          (do (log/set-log-file! v)
+              (log/set-output! :file)))
+
+        (= "bind-server-port" k)
         (g/assoc! :bind-server-port? (parse-config-value v))
+
+        :else
         (do
           (g/update! :server-config #(if (delete-sentinel? v)
                                        (dissoc-in (or % {}) (config-path k))
-                                       (assoc-in (or % {}) (config-path k) (parse-config-value (resolved-config-value v)))))
-          (persist-config-entry! k v))))))
+                                       (assoc-in (or % {}) (config-path k)
+                                                  (parse-config-value (resolved-config-value v)))))
+          (fconfig/persist-config-entry! k v))))))
 
 ;; isaac-edn-file-exists ("the isaac EDN file X exists with:") and
 ;; isaac-file-exists-with-content ("the isaac file X exists with:") moved to
@@ -607,9 +600,9 @@
 
 ;; region ----- Routing -----
 
-(defgiven "config:" isaac.server.server-steps/configure
+(defgiven "server config:" isaac.server.server-steps/server-config-applied
   "Applies server harness settings from a key/value table (log.output,
-   server.* keys, bind-server-port).")
+   server.* keys, bind-server-port, in-memory :server-config).")
 
 (defwhen "the isaac EDN file {path:string} is removed" isaac.server.server-steps/isaac-edn-file-removed
   "Deletes the EDN file at <root>/.isaac/<path> and fires a config-change
