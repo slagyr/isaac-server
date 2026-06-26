@@ -66,6 +66,20 @@
       (should= 0 (:port @started))
       (should= virtual-home (:root @started))))
 
+  (it "disables the async config reloader so sync-config-reload! is sole consumer"
+    (let [started (atom nil)
+          cfg     {:server {:hot-reload true :port 7788}}]
+      (g/assoc! :mem-fs (nexus/get :fs))
+      (g/assoc! :root "/target/test-state")
+      (fs/mkdirs (nexus/get :fs) "/target/test-state/config")
+      (fs/spit (nexus/get :fs) "/target/test-state/config/isaac.edn" (pr-str cfg))
+      (with-redefs [app/start! (fn [opts]
+                                 (reset! started opts)
+                                 {:port 7788 :host "0.0.0.0"})
+                    app/stop!  (fn [] nil)]
+        (sut/server-running))
+      (should= false (:start-config-reloader? @started))))
+
   (it "uses an isolated default home when no root or isaac-home is set"
     (let [started (atom nil)]
       (with-redefs [app/start! (fn [opts]

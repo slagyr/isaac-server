@@ -357,6 +357,9 @@
         run-server?    (not (false? (g/get :bind-server-port?)))
         start-opts     {:cfg                  cfg-map
                          :config-change-source config-source
+                         ;; Feature harness reloads synchronously via sync-config-reload!;
+                         ;; skip the async poll loop so it does not race on the source.
+                         :start-config-reloader? false
                          :dev                  (= "true" (loader/env "ISAAC_DEV"))
                          :fs                   (server-fs)
                          :host                 (:host cfg)
@@ -637,7 +640,8 @@
    Merges in-memory :server-config and :provider-configs over whatever
    loader/load-config-result returns from disk. When mem-fs is active,
    wires a synchronous memory change-source so hot-reload scenarios fire
-   deterministically from test writes.")
+   deterministically from test writes. Disables the async config reloader
+   (:start-config-reloader? false) so sync-config-reload! is the sole consumer.")
 
 (defwhen "the Isaac process is started" isaac.server.server-steps/server-running
   "Alias for 'the Isaac server is started' as a When step. Starts the full

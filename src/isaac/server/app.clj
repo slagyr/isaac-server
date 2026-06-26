@@ -220,7 +220,8 @@
             _                       (service-runtime/start-all! module-index)
             config-source           (start-config-source opts hot-reload? root)
             _                       (some-> config-source runtime/start!)
-            reloader                (when (and config-source root)
+            reloader                (when (and config-source root
+                                               (not (false? (:start-config-reloader? opts))))
                                       (start-config-reloader! config-source root host-ctx comm-registry registries))
             handler-opts            (build-handler-opts opts config-home root)
             {:keys [server actual]} (start-http-server dev? start-http-server? handler-opts port host)
