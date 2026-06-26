@@ -2,16 +2,14 @@
   "Babashka file-watcher backed by org.babashka/fswatcher (Go fsnotify).
    Uses FSEvents on macOS and inotify on Linux — event-driven, not polling."
   (:require
-    [isaac.config.change-source-protocol :as proto]
-    [isaac.config.paths :as paths])
+    [isaac.config.change-source-log :as change-log]
+    [isaac.config.change-source-protocol :as proto])
   (:import
     (java.util.concurrent LinkedBlockingQueue TimeUnit)))
 
 (defn- enqueue-change! [queue home {:keys [path]}]
-  (when-not (proto/editor-artifact? path)
-    (when-let [rel (paths/config-relative home path)]
-      (when (paths/config-file? rel)
-        (.offer queue rel)))))
+  (when-let [rel (change-log/record-change-detected! home path)]
+    (.offer queue rel)))
 
 (deftype FswatcherChangeSource [home queue state]
   proto/ConfigChangeSource
@@ -25,6 +23,7 @@
                                  (fn [event] (enqueue-change! queue home event))
                                  {:recursive true})]
           (reset! state {:watcher watcher})
+          (change-log/record-watch-started! home :bb-fswatcher)
           ;; FSEvents on macOS needs a moment to start tracking a new directory.
           (Thread/sleep 1000))))
     nil)

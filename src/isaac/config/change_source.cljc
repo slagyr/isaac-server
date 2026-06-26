@@ -1,5 +1,6 @@
 (ns isaac.config.change-source
   (:require
+    [isaac.config.change-source-log :as change-log]
     [isaac.config.change-source-protocol :as proto]
     [isaac.config.paths :as paths]
     #?@(:bb  [[isaac.config.change-source-bb :as platform]]
@@ -10,13 +11,14 @@
 (def editor-artifact? proto/editor-artifact?)
 
 (defn- enqueue-change! [queue home path]
-  (when-let [relative (paths/config-relative home path)]
-    (when (paths/config-file? relative)
-      (.offer queue relative))))
+  (when-let [relative (change-log/record-change-detected! home path)]
+    (.offer queue relative)))
 
 (deftype MemoryChangeSource [home queue]
   proto/ConfigChangeSource
-  (proto/-start! [_] nil)
+  (proto/-start! [_]
+    (change-log/record-watch-started! home :memory)
+    nil)
   (proto/-stop! [_] nil)
   (proto/-poll! [_ timeout-ms]
     (if (pos? timeout-ms)

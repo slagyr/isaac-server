@@ -6,7 +6,8 @@
   (:require
     [clojure.string :as str]
     #?@(:bb  []
-        :clj [[isaac.config.change-source-protocol :as proto]
+        :clj [[isaac.config.change-source-log :as change-log]
+              [isaac.config.change-source-protocol :as proto]
               [isaac.config.paths :as paths]]))
   #?@(:bb  []
       :clj [(:import
@@ -26,10 +27,8 @@
                 (str/replace (str (.relativize config-root full-path)) "\\" "/"))))
 
           (defn- enqueue-change! [queue home path]
-            (when-not (proto/editor-artifact? path)
-              (when-let [relative (relative-config-path home path)]
-                (when (paths/config-file? relative)
-                  (.offer queue relative)))))
+            (when-let [relative (change-log/record-change-detected! home path)]
+              (.offer queue relative)))
 
           (defn- register-dir! [watch-service keys dir]
             (let [key (.register dir
@@ -80,6 +79,7 @@
                                         (.setDaemon true))]
                     (register-tree! watch-service keys config-root)
                     (.start thread)
+                    (change-log/record-watch-started! home :jvm-watch-service)
                     (reset! state {:keys keys :thread thread :watch-service watch-service}))))
               nil)
             (proto/-stop! [_]

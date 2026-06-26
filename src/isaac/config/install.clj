@@ -119,6 +119,7 @@
    new snapshot and reconcile `registries` against `old-config`. Returns the new
    config on success, nil if rejected."
   [{:keys [root fs old-config comm-registry registries host path]}]
+  (log/info :config.reload/begin :path path)
   (let [load-result (config/load-config-result {:root root :fs fs :raw-parse-errors? true})
         errors      (:errors load-result)
         new-cfg     (:config load-result)]
