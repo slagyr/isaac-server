@@ -158,7 +158,7 @@
   [opts]
   (when (running?) (stop!))
   (let [root          (:root opts)
-        fs                 (or (fs/instance opts) (fs/real-fs))
+        fs                 (or (:fs opts) (nexus/get :fs) (fs/real-fs))
         load-result        (when (and (not (:cfg opts)) root)
                              (loader/load-config-result {:root root :fs fs}))
         cfg                (cond-> (or (:cfg opts) (:config load-result) {})

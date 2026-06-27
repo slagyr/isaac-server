@@ -4,6 +4,7 @@
     [isaac.config.schema.root :as schema]
     [isaac.config.configurator :as sut]
     [isaac.logger :as log]
+    [isaac.fs :as fs]
     [isaac.module.loader :as module-loader]
     [isaac.server.app :as app]
     [isaac.nexus :as nexus]
@@ -13,7 +14,7 @@
 
   #_{:clj-kondo/ignore [:unresolved-symbol]}
   (around [example]
-    (nexus/-with-nested-nexus {}
+    (nexus/-with-nested-nexus {:fs (fs/mem-fs)}
       (example)))
 
   (describe "component reconciliation"

@@ -50,7 +50,7 @@
 
 (defn run [{:keys [port host logs] :as opts}]
   (let [root-dir      (root/default-root opts)
-        fs*           (or (fs/instance opts) (fs/real-fs))
+        fs*           (or (:fs opts) (nexus/get :fs) (fs/real-fs))
         ;; CLIs load config at their entry point (never reload — that's a
         ;; server-only concern); app/start! resolves port/host and commits it.
         loaded-config (:config (loader/load-config-result {:root root-dir :fs fs*}))

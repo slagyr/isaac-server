@@ -2,6 +2,8 @@
   (:require
     [clojure.edn :as edn]
     [isaac.config.berths :as berths]
+    [isaac.fs :as fs]
+    [isaac.nexus :as nexus]
     [isaac.module.loader :as module-loader]
     [isaac.config.validation]
     [isaac.schema.meta]
@@ -36,6 +38,10 @@
        (apply merge {})))
 
 (describe "manifest self-consistency"
+
+  (around [example]
+    (nexus/-with-nested-nexus {:fs (fs/mem-fs)}
+      (example)))
 
   (it "the server manifest is pure data — clojure.edn parses it with no readers"
     (let [manifest (edn/read-string (slurp "resources/isaac-manifest.edn"))]

@@ -3,9 +3,11 @@
     [isaac.cli.registry :as registry]
     [isaac.config.api :as config]
     [isaac.config.loader :as loader]
+    [isaac.fs :as fs]
     [isaac.log-viewer :as viewer]
     [isaac.logger :as log]
     [isaac.module.loader :as module-loader]
+    [isaac.nexus :as nexus]
     [isaac.server.app :as app]
     [isaac.server.cli :as sut]
     [isaac.server.runtime :as runtime]
@@ -21,6 +23,10 @@
 (describe "Server command"
 
   (helper/with-captured-logs)
+
+  (around [example]
+    (nexus/-with-nested-nexus {:fs (fs/mem-fs)}
+      (example)))
 
   (describe "command registration"
 

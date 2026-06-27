@@ -5,6 +5,7 @@
     [isaac.config.root :as root]
     [isaac.fs :as fs]
     [isaac.module.loader :as module-loader]
+    [isaac.nexus :as nexus]
     [isaac.shell :as shell]))
 
 (def missing-clojure-msg
@@ -41,7 +42,7 @@
 
 (defn- launch-deps-for [opts]
   (let [root-dir (root/default-root opts)
-        fs*      (or (fs/instance opts) (fs/real-fs))
+        fs*      (or (:fs opts) (nexus/get :fs) (fs/real-fs))
         config   (:config (loader/load-config-result {:root root-dir :fs fs*}))
         cwd      (System/getProperty "user.dir")]
     (module-loader/config->launch-deps config cwd)))
