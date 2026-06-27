@@ -93,6 +93,7 @@
                (g/get :root))))
 
   (it "deletes config keys with #delete"
+    ;; | key | value | headers are not data rows (foundation config-rows).
     (g/assoc! :mem-fs (nexus/get :fs))
     (g/assoc! :root test-root)
     (g/assoc! :server-config {:comms {(keyword marigold/longwave) {:token "shh" :name marigold/captain}}})
@@ -101,11 +102,9 @@
              (pr-str {:comms {(keyword marigold/longwave) {:token "shh" :name marigold/captain}}}))
     (sut/server-config-applied {:headers ["key" "value"]
                     :rows    [[(str "comms." marigold/longwave ".token") "#delete"]]})
-    (should= {:comms {(keyword marigold/longwave) {:name marigold/captain}}
-              :key   "value"}
+    (should= {:comms {(keyword marigold/longwave) {:name marigold/captain}}}
              (g/get :server-config))
-    (should= {:comms {(keyword marigold/longwave) {:name marigold/captain}}
-              :key   "value"}
+    (should= {:comms {(keyword marigold/longwave) {:name marigold/captain}}}
              (read-string (fs/slurp (nexus/get :fs) (str test-root "/config/isaac.edn")))))
 
 )
