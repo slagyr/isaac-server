@@ -7,9 +7,12 @@
     [isaac.config.loader :as loader]
     [isaac.config.runtime :as runtime]
     [isaac.config.server-config :as srv-config]
+    [isaac.foundation.cli-steps :as fcli]
     [isaac.foundation.harness-config-steps :as fconfig]
     [isaac.foundation.fs-steps :as ffs]
     [isaac.foundation.root-steps :as froot]
+    [isaac.log.file :as log-file]
+    [isaac.server.logging :as server-logging]
     [isaac.server.test-store]
     [isaac.server.cli :as server]
     [isaac.module.loader :as module-loader]
@@ -41,6 +44,13 @@
 ;; The foundation isaac-file write steps (moved to isaac.foundation.fs-steps)
 ;; fire post-write hooks; register the server-side config-change notification
 ;; so hot-reload scenarios still get notified when a config file is written.
+(fcli/register-isaac-run-wrapper!
+  (fn [thunk]
+    (if-let [ct (g/get :current-time)]
+      (binding [log-file/*now* ct]
+        (thunk))
+      (thunk))))
+
 (froot/register-root-setup-hook!
   (fn [abs-dir]
     (reset! comm-registry/*registry* (comm-registry/fresh-registry))
@@ -287,11 +297,15 @@
                                             (parse-isaac-value file-path path value))))
           (notify-config-change! file-path))))))
 
+(defn- seeded-log-ts [n]
+  (let [base (or (g/get :current-time) (java.time.Instant/parse "2026-05-12T00:00:00Z"))]
+    (str (.plusSeconds base n))))
+
 (defn isaac-file-with-log-entries [path n]
   (let [n     (parse-long n)
         lines (->> (range 1 (inc n))
-                   (map #(format "{:ts \"2026-05-12T00:%02d:%02dZ\" :level :info :event :e%02d}"
-                                 (quot % 60) (mod % 60) %))
+                   (map #(format "{:ts \"%s\" :level :info :event :e%02d}"
+                                 (seeded-log-ts %) %))
                    (str/join "\n"))]
     (with-server-fs
       (fn []
@@ -368,10 +382,15 @@
     (g/assoc! :server-handler-opts {:cfg-fn    (fn [] (or (some-> app/state deref :cfg deref) cfg-map))
                                     :root runtime-state
                                     :home      home})
-    (lifecycle/reset-hello!)
-    (lifecycle/emit-hello! runtime-state (:dev start-opts))
-    (when-let [{:keys [port]} (app/start! start-opts)]
-      (g/assoc! :server-port port))))
+    (let [start! (fn []
+                   (server-logging/configure! runtime-state cfg-map)
+                   (lifecycle/reset-hello!)
+                   (lifecycle/emit-hello! runtime-state (:dev start-opts))
+                   (when-let [{:keys [port]} (app/start! start-opts)]
+                     (g/assoc! :server-port port)))]
+      (if-let [ct (g/get :current-time)]
+        (binding [log-file/*now* ct] (start!))
+        (start!)))))
 
 ;; endregion ^^^^^ Setup ^^^^^
 

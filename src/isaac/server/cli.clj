@@ -9,7 +9,9 @@
     [isaac.config.root :as root]
     [isaac.fs :as fs]
     [isaac.log-viewer :as viewer]
+    [isaac.log.file :as log-file]
     [isaac.logger :as log]
+    [isaac.server.logging :as server-logging]
     [isaac.nexus :as nexus]
     [isaac.server.app :as app]
     [isaac.server.lifecycle :as lifecycle]
@@ -59,10 +61,9 @@
         dev?          (if (contains? opts :dev)
                         (boolean (:dev opts))
                         (= "true" (loader/env "ISAAC_DEV")))]
+    (server-logging/configure! root-dir loaded-config)
     (when logs
-      (when-let [abs-path (start-log-tail! (log/log-file) root-dir opts)]
-        (log/set-log-file! abs-path)
-        (log/set-output! :file)))
+      (start-log-tail! (log-file/server-log-path root-dir) root-dir opts))
     (nexus/-with-nested-nexus {:fs fs*}
       (nexus/init! {:fs fs*})
       (lifecycle/reset-hello!)

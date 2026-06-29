@@ -142,23 +142,16 @@
       (should= "/tmp/server-home/.isaac" (:root @started))
       (should-not (contains? @started :home)))
 
-    (it "enables file logging when --logs is requested"
-      (let [log-file    (temp-dir)
-            tailed-path (atom nil)
-            output-kind (atom nil)]
-        (with-redefs [log/log-file              (fn [] "server.log")
-                      sut/start-log-tail!       (fn [path root opts]
-                                                  (reset! tailed-path [path root opts])
-                                                  (.getAbsolutePath log-file))
-                      log/set-log-file!         (fn [path] (reset! tailed-path (conj @tailed-path path)))
-                      log/set-output!           (fn [kind] (reset! output-kind kind))]
+    (it "tails the durable server log when --logs is requested"
+      (let [tailed-path (atom nil)]
+        (with-redefs [sut/start-log-tail! (fn [path root opts]
+                                            (reset! tailed-path [path root opts])
+                                            path)]
           (with-out-str (sut/run {:home "/tmp/server-home" :logs true :zebra true})))
-        (should= ["server.log"
+        (should= ["/tmp/server-home/.isaac/logs/server.log"
                   "/tmp/server-home/.isaac"
-                  {:home "/tmp/server-home" :logs true :zebra true}
-                  (.getAbsolutePath log-file)]
+                  {:home "/tmp/server-home" :logs true :zebra true}]
                  @tailed-path)
-        (should= :file @output-kind)
         (should= "/tmp/server-home/.isaac" (:root @started))))
 
     )
