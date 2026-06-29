@@ -17,6 +17,7 @@
     [isaac.service.runtime :as service-runtime]
     [isaac.nexus :as nexus]
     [isaac.server.http :as http]
+    [isaac.server.logging :as server-logging]
     [org.httpkit.server :as httpkit])
   (:import
     (java.time Duration Instant)))
@@ -189,6 +190,7 @@
       :else
       (let [_                       (nexus/init! {:fs fs})
             _                       (when root (root/init-root! root))
+            _                       (when root (server-logging/configure! root cfg))
             module-index            (merge (module-loader/builtin-index) (:module-index cfg))
             scheduler               (when root
                                       (-> (scheduler-core/create {})

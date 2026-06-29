@@ -4,9 +4,6 @@ Feature: Server log file lifecycle
 
   Background:
     Given default Grover setup
-    And config:
-      | key        | value |
-      | log.output | file  |
 
   Scenario: S1 — the server's active log is logs/server.log
     Given config:
