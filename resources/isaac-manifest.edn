@@ -26,6 +26,9 @@
                                                   :value-spec {:type    :map
                                                                :schema  {:namespace {:type :symbol :validations [:present?]}}}}}}
 
+ :isaac/log-stream {:server {:file        "logs/server.log"
+                            :description "HTTP server logs"}}
+
  :isaac/cli {:server  {:usage     "server [options]"
                        :summary   "Start the Isaac HTTP server"
                        :namespace isaac.server.cli}
