@@ -4,8 +4,10 @@
     [isaac.config.api :as config]
     [isaac.config.loader :as loader]
     [isaac.fs :as fs]
+    [isaac.log.file :as lfile]
     [isaac.log-viewer :as viewer]
     [isaac.logger :as log]
+    [isaac.main :as main]
     [isaac.module.loader :as module-loader]
     [isaac.nexus :as nexus]
     [isaac.server.app :as app]
@@ -180,3 +182,20 @@
           (should= {:home "/tmp/server-home" :port "4000" :host "127.0.0.1"} @captured)))))
 
   )
+
+(describe "main dispatch"
+
+  (around [example]
+    (nexus/-with-nested-nexus {:fs (fs/mem-fs)}
+      (lfile/clear-sink-config!)
+      (example)))
+
+  (it "binds the rotating server log when dispatched through isaac main"
+    (let [root (str (.getAbsolutePath (temp-dir)) "/.isaac")
+          cfg  {:config {:server {:port 0 :auth {:token "s3cr3t"}}}}]
+      (with-redefs [sut/block! (fn [] nil)
+                    app/start! (fn [_] {:port 0 :host "127.0.0.1"})
+                    loader/load-config-result (fn [& _] cfg)]
+        (with-out-str (main/run ["--root" root "server" "--port" "0"])))
+      (should (lfile/server-sink?))
+      (should (fs/exists? (nexus/get :fs) (lfile/server-log-path root))))))

@@ -396,25 +396,39 @@
 
 ;; region ----- Server Commands -----
 
+(defn- feature-server-config []
+  (let [root (g/get :root)]
+    (if root
+      (deep-merge (with-server-fs #(load-server-config root (server-fs)))
+                  (or (g/get :server-config) {}))
+      (or (g/get :server-config) {}))))
+
+(defn- argv-with-feature-root [argv]
+  (if (and (g/get :root) (not (some #{"--root"} argv)))
+    (into ["--root" (g/get :root)] argv)
+    argv))
+
 (defn- run-cli-with-stubbed-config!
   "Runs `argv` through isaac.main with loader/load-config-result stubbed to
-   the current :server-config bean and block! no-op'd, then stops the
-   server. Stops any prior server first so consecutive scenarios don't
-   collide on the same port."
+   the feature root's on-disk config merged with :server-config, block!
+   no-op'd, then stops the server. Injects --root from the feature bean when
+   absent so logs and config land under the scenario root."
   [argv]
-  (let [cfg (or (g/get :server-config) {})]
+  (let [cfg   (feature-server-config)
+        argv* (argv-with-feature-root argv)]
     (with-redefs [server/block!             (fn [] nil)
                   loader/load-config-result (fn [& _] {:config cfg})]
       (with-out-str
         (app/stop!)
-        (main/run argv))))
+        (main/run argv*))))
   (app/stop!))
 
 (defn server-command-run [port]
   (run-cli-with-stubbed-config! ["server" "--port" (str port)]))
 
 (defn server-command-run-no-port []
-  (let [cfg (or (g/get :server-config) {})]
+  (let [cfg   (feature-server-config)
+        argv* (argv-with-feature-root ["server"])]
     (with-redefs [server/block!             (fn [] nil)
                   loader/load-config-result (fn [& _] {:config cfg})
                   httpkit/run-server        (fn [_handler opts] (atom (:port opts)))
@@ -422,7 +436,7 @@
                   httpkit/server-stop!      (fn [_s] nil)]
       (with-out-str
         (app/stop!)
-        (main/run ["server"]))
+        (main/run argv*))
       (app/stop!))))
 
 (defn server-command-run-with-args [args]

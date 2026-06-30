@@ -13,6 +13,15 @@ Feature: Server log file lifecycle
     When the Isaac server is started
     Then the isaac file "logs/server.log" exists
 
+  Scenario: S1b — isaac server CLI dispatch writes logs/server.log
+    Given config:
+      | key               | value |
+      | server.port       | 0     |
+      | server.hot-reload | false |
+      | server.auth.token | test  |
+    When the server command is run on port 0
+    Then the isaac file "logs/server.log" exists
+
   Scenario: S2a — daily rollover archives the previous day
     Given the clock is fixed at "2026-06-28T12:00:00Z"
     And the isaac file "logs/server.log" exists with 3 log entries
