@@ -22,6 +22,16 @@ Feature: Server log file lifecycle
     When the server command is run on port 0
     Then the isaac file "logs/server.log" exists
 
+  Scenario: kxre — server structured logs stay in server.log, not cli.log
+    Given config:
+      | key               | value |
+      | server.port       | 0     |
+      | server.hot-reload | false |
+      | server.auth.token | test  |
+    When the server command is run on port 0
+    Then the isaac file "logs/server.log" exists with log entries
+    And the isaac log file "logs/cli.log" has no server-origin entries
+
   Scenario: S2a — daily rollover archives the previous day
     Given the clock is fixed at "2026-06-28T12:00:00Z"
     And the isaac file "logs/server.log" exists with 3 log entries
