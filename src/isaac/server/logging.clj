@@ -1,9 +1,9 @@
 (ns isaac.server.logging
   (:require
-    [isaac.log.file :as log-file]))
+    [isaac.log.output :as log-output]))
 
 (defn configure!
-  "Initialize the rotating server log at <root>/logs/server.log. Writes go
-   through the server sink even when the harness keeps :memory for assertions."
+  "Apply :logging.output from config. Default :file activates the rotating
+   server log at <root>/logs/server.log; :stdout/:stderr/:none stream without it."
   [root config]
-  (log-file/configure-server-sink! root config))
+  (log-output/apply-server! root config))
