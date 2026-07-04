@@ -15,6 +15,7 @@
     [isaac.module.loader :as module-loader]
     [isaac.scheduler.runtime :as scheduler-core]
     [isaac.service.runtime :as service-runtime]
+    [isaac.service.supervisor :as supervisor]
     [isaac.nexus :as nexus]
     [isaac.server.http :as http]
     [isaac.server.logging :as server-logging]
@@ -220,6 +221,8 @@
             _                       (runtime/install-config-berths! {:config cfg :module-index module-index})
             _                       (log/info :server/boot-phase :phase :start)
             _                       (service-runtime/start-all! module-index)
+            _                       (do (supervisor/reset-health!)
+                                        (supervisor/start! service-runtime/started-services))
             config-source           (start-config-source opts hot-reload? root)
             _                       (some-> config-source runtime/start!)
             reloader                (when (and config-source root
@@ -251,6 +254,7 @@
           (log/info :server/shutdown-phase :phase :hail-router)
           (stop-optional-service! 'isaac.hail.router/stop! hail-router))
         (log/info :server/shutdown-phase :phase :services)
+        (supervisor/stop!)
         (service-runtime/stop-all!)
         (log/info :server/shutdown-phase :phase :modules)
         (module-loader/shutdown-modules!)
