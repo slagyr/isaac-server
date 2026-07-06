@@ -411,24 +411,12 @@
 (defn- run-cli-with-stubbed-config!
   "Runs `argv` through isaac.main with loader/load-config-result stubbed to
    the feature root's on-disk config merged with :server-config, block!
-   no-op'd, then stops the server. Injects --root from the feature bean when
-   absent so logs and config land under the scenario root."
+   no-op'd, and httpkit server binding stubbed so startup/logging scenarios do
+   not claim real ports. Injects --root from the feature bean when absent so
+   logs and config land under the scenario root."
   [argv]
   (let [cfg   (feature-server-config)
         argv* (argv-with-feature-root argv)]
-    (with-redefs [server/block!             (fn [] nil)
-                  loader/load-config-result (fn [& _] {:config cfg})]
-      (with-out-str
-        (app/stop!)
-        (main/run argv*))))
-  (app/stop!))
-
-(defn server-command-run [port]
-  (run-cli-with-stubbed-config! ["server" "--port" (str port)]))
-
-(defn server-command-run-no-port []
-  (let [cfg   (feature-server-config)
-        argv* (argv-with-feature-root ["server"])]
     (with-redefs [server/block!             (fn [] nil)
                   loader/load-config-result (fn [& _] {:config cfg})
                   httpkit/run-server        (fn [_handler opts] (atom (:port opts)))
@@ -436,8 +424,16 @@
                   httpkit/server-stop!      (fn [_s] nil)]
       (with-out-str
         (app/stop!)
-        (main/run argv*))
-      (app/stop!))))
+        (try
+          (main/run argv*)
+          (finally
+            (app/stop!)))))))
+
+(defn server-command-run [port]
+  (run-cli-with-stubbed-config! ["server" "--port" (str port)]))
+
+(defn server-command-run-no-port []
+  (run-cli-with-stubbed-config! ["server"]))
 
 (defn server-command-run-with-args [args]
   (let [arg-parts (remove str/blank? (str/split args #"\s+" 2))]

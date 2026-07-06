@@ -5,10 +5,12 @@
     [isaac.foundation.fs-steps :as ffs]
     [isaac.fs :as fs]
     [isaac.marigold :as marigold]
-    [isaac.server.app :as app]
     [isaac.nexus :as nexus]
+    [isaac.server.app :as app]
     [isaac.server.server-steps :as sut]
-    [speclj.core :refer :all]))
+    [speclj.core :refer :all])
+  (:import
+    (java.net InetAddress InetSocketAddress ServerSocket)))
 
 (def test-root "/target/test-state")
 
@@ -44,7 +46,7 @@
       (with-redefs [app/start! (fn [opts]
                                  (reset! started opts)
                                  {:port 7788 :host "0.0.0.0"})
-                     app/stop!  (fn [] nil)]
+                    app/stop!  (fn [] nil)]
         (sut/server-running))
       (should= 7788 (get-in (:cfg @started) [:server :port]))
       (should= virtual-home (:root @started))))
@@ -61,7 +63,7 @@
       (with-redefs [app/start! (fn [opts]
                                  (reset! started opts)
                                  {:port 0 :host "0.0.0.0"})
-                     app/stop!  (fn [] nil)]
+                    app/stop!  (fn [] nil)]
         (sut/server-running))
       (should= 0 (:port @started))
       (should= virtual-home (:root @started))))
@@ -92,6 +94,17 @@
       (should= (str (System/getProperty "user.dir") "/target/test-state/server-default-home")
                (g/get :root))))
 
+  (it "runs the server command step without binding the real port"
+    (g/assoc! :server-config {:log {:output :memory}
+                              :server {:hot-reload false}})
+    (let [socket (ServerSocket.)]
+      (.bind socket (InetSocketAddress. (InetAddress/getByName "127.0.0.1") 0))
+      (let [port (.getLocalPort socket)]
+        (try
+          (should-not-throw (sut/server-command-run port))
+          (finally
+            (.close socket))))))
+
   (it "deletes config keys with #delete"
     ;; | key | value | headers are not data rows (foundation config-rows).
     (g/assoc! :mem-fs (nexus/get :fs))
@@ -101,10 +114,10 @@
     (fs/spit (nexus/get :fs) (str test-root "/config/isaac.edn")
              (pr-str {:comms {(keyword marigold/longwave) {:token "shh" :name marigold/captain}}}))
     (sut/server-config-applied {:headers ["key" "value"]
-                    :rows    [[(str "comms." marigold/longwave ".token") "#delete"]]})
+                                :rows    [[(str "comms." marigold/longwave ".token") "#delete"]]})
     (should= {:comms {(keyword marigold/longwave) {:name marigold/captain}}}
              (g/get :server-config))
     (should= {:comms {(keyword marigold/longwave) {:name marigold/captain}}}
              (read-string (fs/slurp (nexus/get :fs) (str test-root "/config/isaac.edn")))))
 
-)
+  )
