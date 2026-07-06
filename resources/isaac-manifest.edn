@@ -1,5 +1,5 @@
 {:id        :isaac.server
- :version   "0.1.8"
+ :version   "0.1.9"
  :builtin?  true
  :factory   isaac.server.module/create-module
 
