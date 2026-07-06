@@ -9,6 +9,7 @@
     [isaac.config.server-config :as server-config]
     [isaac.config.runtime :as runtime]
     [isaac.comm.delivery.worker :as worker]
+    [isaac.session.store.spi :as session-store]
     [isaac.fs :as fs]
     [isaac.config.root :as root]
     [isaac.logger :as log]
@@ -253,6 +254,13 @@
         (when hail-router
           (log/info :server/shutdown-phase :phase :hail-router)
           (stop-optional-service! 'isaac.hail.router/stop! hail-router))
+        (let [cfg (current-config)
+              timeout-ms (or (get-in cfg [:server :suspend-timeout-ms]) 15000)
+              store (session-store/registered-store)]
+          (when (and store (resolve 'isaac.bridge.suspend/suspend!))
+            (log/info :server/shutdown-phase :phase :suspend :timeout-ms timeout-ms)
+            ((resolve 'isaac.bridge.suspend/suspend!)
+             {:timeout-ms timeout-ms :session-store store})))
         (log/info :server/shutdown-phase :phase :services)
         (supervisor/stop!)
         (service-runtime/stop-all!)
