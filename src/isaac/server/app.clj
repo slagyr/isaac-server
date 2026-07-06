@@ -231,6 +231,12 @@
                                       (start-config-reloader! config-source root host-ctx comm-registry registries))
             handler-opts            (build-handler-opts opts config-home root)
             {:keys [server actual]} (start-http-server dev? start-http-server? handler-opts port host)
+            _                       (when-let [store (session-store/registered-store)]
+                                      (when-let [resume! (resolve 'isaac.bridge.resume/resume-interrupted-turns!)]
+                                        (log/info :server/boot-phase :phase :resume)
+                                        (resume! {:session-store store
+                                                  :root          root
+                                                  :cfg           cfg})))
             {:keys [delivery hail-delivery hail-router]} (start-background-services opts scheduler)]
         (when (and dev? start-http-server?)
           (log/info :server/dev-mode-enabled :host host :port actual))
