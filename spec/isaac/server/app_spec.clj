@@ -2,8 +2,8 @@
   (:require
      [c3kit.apron.refresh :as refresh]
      [isaac.config.runtime :as runtime]
-     [isaac.fs :as fs]
      [isaac.comm.delivery.worker :as worker]
+     [isaac.session.store.spi :as session-store]
      [isaac.logger :as log]
      [isaac.marigold-server :as marigold-server]
      [isaac.server.test-store]
@@ -147,6 +147,35 @@
       (should (pos-int? (:loaded summary)))
       (should (pos-int? (:activated summary)))
       (should= 0 (:failed summary))))
+
+  (it "logs the resume boot phase before starting the delivery worker when startup resume is available"
+    (let [events (atom [])]
+      (with-redefs [httpkit/run-server                 (fn [_ _] (fn [] nil))
+                    httpkit/server-port                (fn [_] 7001)
+                    httpkit/server-stop!               (fn [_] nil)
+                    scheduler-core/create              (fn [_] ::scheduler)
+                    scheduler-core/start!              identity
+                    scheduler-core/shutdown!           (fn [_] nil)
+                    session-store/registered-store     (fn [] ::store)
+                    sut/resolve-var                    (fn [sym]
+                                                         (case sym
+                                                           isaac.bridge.resume/resume-interrupted-turns!
+                                                           (fn [opts] (swap! events conj [:resume opts]))
+                                                           nil))
+                    worker/start!                      (fn [opts]
+                                                         (swap! events conj [:worker opts])
+                                                         ::worker)]
+        (sut/start! {:host "127.0.0.1" :port 0 :root "/tmp/isaac" :cfg {}})
+        (sut/stop!))
+      (should= [[:resume {:session-store ::store
+                          :root          "/tmp/isaac"
+                          :cfg           {:root "/tmp/isaac"}}]
+                [:worker {}]]
+               @events)
+      (let [resume-log (first (filter #(and (= :server/boot-phase (:event %))
+                                            (= :resume (:phase %)))
+                                     @log/captured-logs))]
+        (should-not-be-nil resume-log))))
 
   (it "starts loaded modules during server boot"
     (let [started (atom nil)]
