@@ -255,7 +255,8 @@
         (= "log.output" k)
         (case v
           "memory" (do (log/set-output! :memory)
-                       (log/clear-entries!))
+                       (log/clear-entries!)
+                       (log-file/clear-file-config!))
           (do (log/set-log-file! v)
               (log/set-output! :file)))
 
@@ -417,6 +418,7 @@
   [argv]
   (let [cfg   (feature-server-config)
         argv* (argv-with-feature-root argv)]
+    (log-file/clear-file-config!)
     (with-redefs [server/block!             (fn [] nil)
                   loader/load-config-result (fn [& _] {:config cfg})
                   httpkit/run-server        (fn [_handler opts] (atom (:port opts)))
