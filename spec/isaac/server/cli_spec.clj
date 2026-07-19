@@ -187,7 +187,7 @@
 
   (around [example]
     (nexus/-with-nested-nexus {:fs (fs/mem-fs)}
-      (lfile/clear-file-config!)
+      (lfile/clear-sink-config!)
       (example)))
 
   (it "binds the rotating server log when dispatched through isaac main"
@@ -197,5 +197,5 @@
                     app/start! (fn [_] {:port 0 :host "127.0.0.1"})
                     loader/load-config-result (fn [& _] cfg)]
         (with-out-str (main/run ["--root" root "server" "--port" "0"])))
-      (should (lfile/server-file?))
+      (should (lfile/server-sink?))
       (should (fs/exists? (nexus/get :fs) (lfile/server-log-path root))))))

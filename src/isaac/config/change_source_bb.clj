@@ -3,7 +3,8 @@
    Uses FSEvents on macOS and inotify on Linux — event-driven, not polling."
   (:require
     [isaac.config.change-source-log :as change-log]
-    [isaac.config.change-source-protocol :as proto])
+    [isaac.config.change-source-protocol :as proto]
+    [isaac.config.paths :as paths])
   (:import
     (java.util.concurrent LinkedBlockingQueue TimeUnit)))
 

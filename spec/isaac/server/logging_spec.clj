@@ -14,11 +14,11 @@
     (nexus/-with-nested-nexus {:fs (fs/mem-fs)}
       (it)))
 
-  (before (lfile/clear-file-config!)
+  (before (lfile/clear-sink-config!)
           (log/set-output! :stderr)
           (log/clear-entries!))
 
-  (after (lfile/clear-file-config!)
+  (after (lfile/clear-sink-config!)
          (log/set-output! :stderr))
 
   (it "configure! routes server logs to <root>/logs/server.log with default :file output"
@@ -32,7 +32,7 @@
     (let [root "/isaac-root"]
       (sut/configure! root {:logging {:output :stdout}})
       (should= :stdout (log/output))
-      (should-not (lfile/server-file?))
+      (should-not (lfile/server-sink?))
       (let [sw (java.io.StringWriter.)]
         (binding [*out* sw]
           (log/info :server/stdout-boot))
