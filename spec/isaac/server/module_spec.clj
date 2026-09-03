@@ -1,7 +1,7 @@
 (ns isaac.server.module-spec
   (:require
+    [isaac.module.discovery :as discovery]
     [isaac.module.protocol]
-    [isaac.module.loader :as module-loader]
     [isaac.server.module :as sut]
     [speclj.core :refer :all]))
 
@@ -29,7 +29,7 @@
     (it "with no args falls back to builtin-index"
       (let [index {:isaac.server {:coord {} :manifest {:id :isaac.server :version "1"
                                                       :isaac.server/comm {:widget {:factory 'foo/make}}}}}]
-        (binding [module-loader/*foundation-index-override* index]
+        (binding [discovery/*foundation-index-override* index]
           (should= ["widget"] (sut/comm-kinds))))))
 
   (describe "create-module"

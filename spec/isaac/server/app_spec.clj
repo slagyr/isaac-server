@@ -2,6 +2,7 @@
   (:require
      [c3kit.apron.refresh :as refresh]
      [isaac.config.runtime :as runtime]
+     [isaac.fs :as fs]
      [isaac.comm.delivery.worker :as worker]
      [isaac.session.store.spi :as session-store]
      [isaac.logger :as log]
@@ -19,6 +20,11 @@
 
   (marigold-server/with-manifest)
   (helper/with-captured-logs)
+
+  ;; Foundation's fs/instance no longer falls back to the real fs; start!
+  ;; validates config (fs-backed) before it installs :fs itself, so specs
+  ;; that call start! directly must install one, as isaac.main does.
+  (around [it] (nexus/-with-nested-nexus {:fs (fs/real-fs)} (it)))
 
   ;; Default stubs so each test boots in microseconds, not seconds. The
   ;; main offender was runtime/watch-service-source — it starts a real
