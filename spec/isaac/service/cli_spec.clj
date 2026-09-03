@@ -6,7 +6,7 @@
     [isaac.main :as main]
     [isaac.nexus :as nexus]
     [isaac.service.cli :as cli]
-    [isaac.service.macos :as macos]
+    [isaac.service.launch :as launch]
     [isaac.shell :as shell]
     [speclj.core :refer :all]))
 
@@ -175,7 +175,7 @@
                                  {:exit 0 :out "" :err ""}))]
           (let [result (run "service install")]
             (should= 0 (:exit result))
-            (should= (macos/launchd-path {:bb-bin    "/usr/local/bin/bb"
+            (should= (launch/default-path {:bb-bin    "/usr/local/bin/bb"
                                           :isaac-bin "/usr/local/bin/isaac"})
                      (second (re-find #"<key>PATH</key>\s*<string>([^<]*)</string>"
                                       (fs/slurp (nexus/get :fs)
@@ -228,19 +228,74 @@
         (should-contain "Subcommands:" (:out result))
         (should-contain "install" (:out result)))))
 
-  (describe "on unsupported OS"
+  (describe "on Linux"
 
     #_{:clj-kondo/ignore [:unresolved-symbol]}
     (around [example]
       (binding [shell/*os-name* "Linux"]
         (example)))
 
+    (it "install writes the systemd unit, enables it, and warns when lingering is off"
+      (let [calls (atom [])]
+        (binding [shell/*sh* (fn [& args]
+                               (swap! calls conj (vec args))
+                               (case (vec args)
+                                 ["which" "isaac"] {:exit 0 :out "/usr/local/bin/isaac\n" :err ""}
+                                 ["which" "bb"]    {:exit 0 :out "/usr/local/bin/bb\n" :err ""}
+                                 {:exit 0 :out "" :err ""}))]
+          (let [result (run "service install")]
+            (should= 0 (:exit result))
+            (should (str/includes? (:out result) "Service installed: isaac"))
+            (should (str/includes? (:err result) "lingering is off"))
+            (should (str/includes? (:err result) "loginctl enable-linger"))
+            (should (fs/exists? (nexus/get :fs) "/test/home/.config/systemd/user/isaac.service"))
+            (should (some #(= ["systemctl" "--user" "enable" "--now" "isaac"] %) @calls))))))
+
+    (it "install stays quiet about lingering when loginctl says yes"
+      (binding [shell/*sh* (fn [& args]
+                             (case (vec args)
+                               ["which" "isaac"] {:exit 0 :out "/usr/local/bin/isaac\n" :err ""}
+                               ["which" "bb"]    {:exit 0 :out "/usr/local/bin/bb\n" :err ""}
+                               (if (= "loginctl" (first args))
+                                 {:exit 0 :out "Linger=yes\n" :err ""}
+                                 {:exit 0 :out "" :err ""})))]
+        (let [result (run "service install")]
+          (should= 0 (:exit result))
+          (should-not (str/includes? (:err result) "linger")))))
+
+    (it "status reports running from systemctl show"
+      (fs/mkdirs (nexus/get :fs) "/test/home/.config/systemd/user")
+      (fs/spit   (nexus/get :fs) "/test/home/.config/systemd/user/isaac.service" "[Service]\nExecStart=/usr/local/bin/isaac server\n")
+      (binding [shell/*sh* (fn [& args]
+                             (if (= "show" (nth args 2 nil))
+                               {:exit 0 :out "ActiveState=active\nMainPID=99\nExecMainStatus=0\n" :err ""}
+                               {:exit 0 :out "" :err ""}))]
+        (let [result (run "service status")]
+          (should= 0 (:exit result))
+          (should (str/includes? (:out result) "state: running"))
+          (should (str/includes? (:out result) "pid:   99")))))
+
+    (it "restart calls systemctl --user restart"
+      (let [calls (atom [])]
+        (binding [shell/*sh* (fn [& args]
+                               (swap! calls conj (vec args))
+                               {:exit 0 :out "" :err ""})]
+          (run "service restart")
+          (should (some #(= ["systemctl" "--user" "restart" "isaac"] %) @calls))))))
+
+  (describe "on an unsupported OS"
+
+    #_{:clj-kondo/ignore [:unresolved-symbol]}
+    (around [example]
+      (binding [shell/*os-name* "Windows 11"]
+        (example)))
+
     (it "install prints not supported message"
       (let [result (run "service install")]
         (should= 1 (:exit result))
-        (should (str/includes? (:err result) "not yet supported on Linux"))))
+        (should (str/includes? (:err result) "not supported on Windows 11"))))
 
     (it "status prints not supported message"
       (let [result (run "service status")]
         (should= 1 (:exit result))
-        (should (str/includes? (:err result) "not yet supported on Linux"))))))))
+        (should (str/includes? (:err result) "not supported on Windows 11"))))))))

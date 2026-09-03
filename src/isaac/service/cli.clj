@@ -4,7 +4,10 @@
     [clojure.string :as str]
     [clojure.tools.cli :as tools-cli]
     [isaac.cli.registry :as cli]
+    [isaac.service.launch :as launch]
+    [isaac.service.linux :as linux]
     [isaac.service.macos :as macos]
+    [isaac.service.manager :as manager]
     [isaac.shell :as shell]))
 
 (def ^:dynamic *caller-path*
@@ -17,14 +20,22 @@
    [nil "--bb-bin PATH" "Path to bb binary for dev checkout (default: resolved via which)"]
    [nil "--isaac-dir PATH" "Path to Isaac repo root for dev checkout (default: current directory)"]
    [nil "--root PATH" "Isaac root directory passed to the server"]
-   [nil "--path PATH" "PATH for the launchd service (default: caller shell PATH)"]
-   [nil "--runtime RUNTIME" "Server runtime baked into the plist: bb (default) or jvm"
+   [nil "--path PATH" "PATH for the service (default: caller shell PATH)"]
+   [nil "--runtime RUNTIME" "Server runtime baked into the service: bb (default) or jvm"
     :default "bb"]
    ["-h" "--help" "Show help"]])
 
 (def ^:private logs-options
   [["-f" "--follow" "Follow log output (tail -f)"]
    ["-h" "--help" "Show help"]])
+
+(defn manager-for
+  "The service manager for an OS name, or nil when unsupported."
+  [os]
+  (case os
+    "Mac OS X" macos/manager
+    "Linux"    linux/manager
+    nil))
 
 (defn- find-on-path [cmd]
   (let [result (shell/sh! "which" cmd)]
@@ -46,11 +57,11 @@
 (defn- shell-path []
   (or *caller-path* (System/getenv "PATH")))
 
-(defn- install-plist-path [options isaac-bin bb-bin]
-  (macos/plist-path {:path        (:path options)
-                     :caller-path (shell-path)
-                     :bb-bin      bb-bin
-                     :isaac-bin   isaac-bin}))
+(defn- install-path [options isaac-bin bb-bin]
+  (launch/service-path {:path        (:path options)
+                        :caller-path (shell-path)
+                        :bb-bin      bb-bin
+                        :isaac-bin   isaac-bin}))
 
 (defn- print-subcommand-help
   "Print usage plus tools.cli's aligned option summary for a subcommand."
@@ -62,10 +73,21 @@
 
 (defn- unsupported-os [os]
   (binding [*out* *err*]
-    (println (str "isaac service is not yet supported on " os)))
+    (println (str "isaac service is not supported on " os)))
   1)
 
-(defn- run-install [opts]
+(defn- warn-linger! [user]
+  (binding [*out* *err*]
+    (println "warning: user lingering is off — the service stops when you log out.")
+    (println (str "enable it with: loginctl enable-linger " user))))
+
+(defn- report-installed! [mgr result]
+  (println (str "Service installed: " (manager/service-name mgr)))
+  (when (false? (:linger? result))
+    (warn-linger! (System/getProperty "user.name")))
+  0)
+
+(defn- run-install [mgr opts]
   (let [raw-args (or (:_raw-args opts) [])
         {:keys [options errors]} (tools-cli/parse-opts raw-args install-options)]
     (cond
@@ -88,60 +110,56 @@
                 (println "could not locate bb on PATH (required by the isaac launcher)")
                 (println "pass --bb-bin <path> to specify it explicitly"))
               1)
-            (do
-              (macos/install! (cond-> {:mode      :packaged
-                                       :isaac-bin isaac-bin
-                                       :bb-bin    bb-bin
-                                       :root      root
-                                       :runtime   runtime
-                                       :path      (install-plist-path options isaac-bin bb-bin)}
-                                (:fs opts) (assoc :fs (:fs opts))))
+            (let [result (manager/install! mgr (cond-> {:mode      :packaged
+                                                        :isaac-bin isaac-bin
+                                                        :bb-bin    bb-bin
+                                                        :root      root
+                                                        :runtime   runtime
+                                                        :path      (install-path options isaac-bin bb-bin)}
+                                                 (:fs opts) (assoc :fs (:fs opts))))]
               (println (str "Resolved launcher: " isaac-bin))
               (println (str "Resolved bb: " bb-bin))
-              (println "Service installed: com.slagyr.isaac")
-              0))
+              (report-installed! mgr result)))
 
           :else
-          (let [bb-bin bb-bin]
-            (if-not bb-bin
-              (do
-                (binding [*out* *err*]
-                  (println "could not locate isaac or bb on PATH")
-                  (println "pass --isaac-bin <path> for a packaged install, or --bb-bin <path> for dev checkout"))
-                1)
-              (let [bb-edn (bb-edn-dir (:isaac-dir options))]
-                (macos/install! (cond-> {:mode    :dev
-                                         :bb-bin  bb-bin
-                                         :bb-edn  bb-edn
-                                         :runtime runtime
-                                         :path    (install-plist-path options nil bb-bin)}
-                                  (:fs opts) (assoc :fs (:fs opts))))
-                (println (str "Resolved bb: " bb-bin))
-                (println "Service installed: com.slagyr.isaac")
-                0))))))))
+          (if-not bb-bin
+            (do
+              (binding [*out* *err*]
+                (println "could not locate isaac or bb on PATH")
+                (println "pass --isaac-bin <path> for a packaged install, or --bb-bin <path> for dev checkout"))
+              1)
+            (let [bb-edn (bb-edn-dir (:isaac-dir options))
+                  result (manager/install! mgr (cond-> {:mode    :dev
+                                                        :bb-bin  bb-bin
+                                                        :bb-edn  bb-edn
+                                                        :runtime runtime
+                                                        :path    (install-path options nil bb-bin)}
+                                                 (:fs opts) (assoc :fs (:fs opts))))]
+              (println (str "Resolved bb: " bb-bin))
+              (report-installed! mgr result))))))))
 
-(defn- run-uninstall [opts]
-  (macos/uninstall! opts)
+(defn- run-uninstall [mgr opts]
+  (manager/uninstall! mgr opts)
   (println "Service uninstalled (or already uninstalled)")
   0)
 
-(defn- run-start [opts]
-  (macos/start! opts)
+(defn- run-start [mgr opts]
+  (manager/start! mgr opts)
   (println "Service started")
   0)
 
-(defn- run-stop [opts]
-  (macos/stop! opts)
+(defn- run-stop [mgr opts]
+  (manager/stop! mgr opts)
   (println "Service stopped")
   0)
 
-(defn- run-restart [opts]
-  (macos/restart! opts)
+(defn- run-restart [mgr opts]
+  (manager/restart! mgr opts)
   (println "Service restarted")
   0)
 
-(defn- run-status [_opts]
-  (let [result (macos/status! {})]
+(defn- run-status [mgr _opts]
+  (let [result (manager/status! mgr {})]
     (if-not (:installed? result)
       (do (println "not installed") 1)
       (do
@@ -153,7 +171,7 @@
           (println (str "last exit: " exit)))
         (if (= "running" (:state result)) 0 1)))))
 
-(defn- run-logs [opts]
+(defn- run-logs [mgr opts]
   (let [raw-args (or (:_raw-args opts) [])
         {:keys [options]} (tools-cli/parse-opts raw-args logs-options)]
     (cond
@@ -162,15 +180,15 @@
 
       :else
       (let [follow? (:follow options)
-            result  (macos/logs! {:follow? follow?})]
+            result  (manager/logs! mgr {:follow? follow?})]
         (cond
           follow?           0
           (:content result) (do (print (:content result)) 0)
           :else             (do (binding [*out* *err*] (println "log file not found")) 1))))))
 
 (def subcommands
-  [{:name "install" :summary "Install Isaac as a launchd service" :run run-install}
-   {:name "uninstall" :summary "Remove the Isaac launchd service" :run run-uninstall}
+  [{:name "install" :summary "Install Isaac as a background service" :run run-install}
+   {:name "uninstall" :summary "Remove the Isaac background service" :run run-uninstall}
    {:name "start" :summary "Start the Isaac service" :run run-start}
    {:name "stop" :summary "Stop the Isaac service" :run run-stop}
    {:name "restart" :summary "Restart the Isaac service" :run run-restart}
@@ -182,9 +200,9 @@
 
 (defn- dispatch [subcmd opts]
   (let [os (shell/os-name)]
-    (if (= "Mac OS X" os)
+    (if-let [mgr (manager-for os)]
       (if-let [run (get-in subcommands-by-name [subcmd :run])]
-        (run opts)
+        (run mgr opts)
         (do (binding [*out* *err*] (println (str "Unknown service subcommand: " subcmd))) 1))
       (unsupported-os os))))
 

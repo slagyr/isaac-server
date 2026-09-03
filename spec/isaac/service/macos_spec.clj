@@ -41,30 +41,6 @@
         (should (str/includes? plist "<key>EnvironmentVariables</key>"))
         (should (str/includes? plist "<string>/usr/local/bin:/usr/bin:/bin</string>"))))
 
-    (it "builds launchd-path from bb and isaac parent dirs"
-      (should= "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
-               (sut/launchd-path {:bb-bin    "/opt/homebrew/bin/bb"
-                                  :isaac-bin "/usr/local/bin/isaac"})))
-
-    (it "plist-path prefers caller PATH over launchd-path"
-      (should= "/opt/marigold/bin:/opt/starboard/bin:/usr/bin:/bin"
-               (sut/plist-path {:caller-path "/opt/marigold/bin:/opt/starboard/bin:/usr/bin:/bin"
-                                :bb-bin      "/opt/marigold/bin/bb"
-                                :isaac-bin   "/opt/marigold/bin/isaac"})))
-
-    (it "plist-path uses explicit override over caller PATH"
-      (should= "/opt/quartz/bin:/usr/bin:/bin"
-               (sut/plist-path {:path        "/opt/quartz/bin:/usr/bin:/bin"
-                                :caller-path "/opt/marigold/bin:/usr/bin:/bin"
-                                :bb-bin      "/opt/marigold/bin/bb"
-                                :isaac-bin   "/opt/marigold/bin/isaac"})))
-
-    (it "plist-path falls back to launchd-path when caller PATH is blank"
-      (should= "/usr/local/bin:/usr/bin:/bin"
-               (sut/plist-path {:caller-path "   "
-                                :bb-bin      "/usr/local/bin/bb"
-                                :isaac-bin   "/usr/local/bin/isaac"})))
-
     (it "passes --root before server for packaged installs"
       (let [plist (sut/plist-content {:mode      :packaged
                                       :isaac-bin "/usr/local/bin/isaac"

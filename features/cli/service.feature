@@ -11,7 +11,7 @@ Feature: isaac service — macOS LaunchAgent management
   Background:
     Given an Isaac root at "target/test-state"
     And the operating system is "Mac OS X"
-    And launchctl is stubbed
+    And shell commands are stubbed
 
   Scenario: install captures the caller PATH for packaged installs
     Given "isaac" resolves to "/opt/marigold/bin/isaac"
@@ -108,7 +108,6 @@ Feature: isaac service — macOS LaunchAgent management
     Then the stdout contains "not installed"
     And the exit code is 1
 
-  @wip
   Scenario: status shows running with pid and last exit
     Given "isaac" resolves to "/usr/local/bin/isaac"
     And "bb" resolves to "/usr/local/bin/bb"
@@ -171,7 +170,6 @@ Feature: isaac service — macOS LaunchAgent management
     Then launchctl was called with "bootstrap"
     And the exit code is 0
 
-  @wip
   Scenario: isaac service --help lists subcommands
     When isaac is run with "service --help"
     Then the stdout matches:
@@ -188,7 +186,6 @@ Feature: isaac service — macOS LaunchAgent management
       | logs\s+Tail Isaac service logs                           |
     And the exit code is 0
 
-  @wip
   Scenario: isaac help service prints the same listing
     When isaac is run with "help service"
     Then the stdout matches:
@@ -197,7 +194,6 @@ Feature: isaac service — macOS LaunchAgent management
       | install\s+Install Isaac as a background service             |
     And the exit code is 0
 
-  @wip
   Scenario: bare isaac service prints the same listing
     When isaac is run with "service"
     Then the stdout matches:

@@ -3,7 +3,8 @@
     [clojure.string :as str]
     [isaac.fs :as fs]
     [isaac.config.root :as root]
-    [isaac.nexus :as nexus]
+    [isaac.service.launch :as launch]
+    [isaac.service.manager :as manager]
     [isaac.shell :as shell]))
 
 (defn- runtime-fs [opts] (fs/instance opts))
@@ -37,71 +38,8 @@
 </dict>
 </plist>")
 
-(defn- server-tail-args
-  "Trailing argv after root flags for bb (and dev jvm trampoline). Default bb
-   omits --runtime so today's plists stay unchanged."
-  [runtime]
-  (if (= "jvm" runtime)
-    ["server" "--runtime" "jvm"]
-    ["server"]))
-
-(defn- jvm-packaged-exec-cmd
-  "Single sh -c string: exec clojure with a fresh -Sdeps from isaac modules deps."
-  [{:keys [isaac-bin root]}]
-  (str "exec clojure -Sdeps \"$(" isaac-bin
-       (when root (str " --root " root))
-       " modules deps --edn)\" -M -m isaac.main"
-       (when root (str " --root " root))
-       " server"))
-
-(defn- jvm-packaged-program-arguments
-  "launchd cannot substitute in ProgramArguments; sh -c runs modules deps each boot."
-  [{:keys [isaac-bin root]}]
-  ["/bin/sh" "-c" (jvm-packaged-exec-cmd {:isaac-bin isaac-bin :root root})])
-
-(defn- program-arguments
-  "Packaged bb runs the launcher (`isaac server`); packaged jvm execs clojure via
-   sh wrapper; dev checkouts use `bb --config <repo>/bb.edn -m isaac.main`."
-  [{:keys [mode isaac-bin bb-bin bb-edn root runtime]}]
-  (let [runtime (or runtime "bb")]
-    (case mode
-      :packaged
-      (if (= "jvm" runtime)
-        (jvm-packaged-program-arguments {:isaac-bin isaac-bin :root root})
-        (into (cond-> [isaac-bin]
-                 (some? root) (into ["--root" root]))
-              (server-tail-args runtime)))
-
-      :dev
-      (into [bb-bin "--config" (str bb-edn "/bb.edn") "-m" "isaac.main"]
-            (server-tail-args runtime)))))
-
 (defn- program-args-xml [args]
   (str/join "\n        " (map #(str "<string>" % "</string>") args)))
-
-(defn- parent-dir [path]
-  (when (and (string? path) (seq path))
-    (.getParent (java.io.File. path))))
-
-(defn launchd-path
-  "Minimal PATH for launchd: bb/isaac dirs plus /usr/bin and /bin (git)."
-  [{:keys [bb-bin isaac-bin]}]
-  (->> [(parent-dir bb-bin)
-        (parent-dir isaac-bin)
-        "/usr/bin"
-        "/bin"]
-       (remove str/blank?)
-       distinct
-       (str/join ":")))
-
-(defn plist-path
-  "PATH baked into the LaunchAgent plist: explicit override, else caller
-   shell PATH, else synthesized launchd-path."
-  [{:keys [path caller-path bb-bin isaac-bin]}]
-  (or path
-      (when-let [p (when (string? caller-path) (str/trim caller-path))]
-        (when (seq p) p))
-      (launchd-path {:bb-bin bb-bin :isaac-bin isaac-bin})))
 
 (defn parse-program-arguments
   "Extract ProgramArguments strings from a launchd plist XML document."
@@ -109,33 +47,19 @@
   (when-let [section (second (re-find #"(?s)<key>ProgramArguments</key>\s*<array>(.*?)</array>" content))]
     (vec (map second (re-seq #"<string>([^<]*)</string>" section)))))
 
-(defn runtime-from-program-arguments
-  [args]
-  (cond
-    (and (= "/bin/sh" (first args))
-         (some #(and (string? %)
-                     (str/includes? % "clojure")
-                     (str/includes? % "-m isaac.main"))
-               args))
-    "jvm"
-
-    :else
-    (let [idx (.indexOf ^java.util.List (or args []) "--runtime")]
-      (if (neg? idx) "bb" (nth args (inc idx) "bb")))))
-
 (defn runtime-from-plist
   "Infer installed server runtime from ProgramArguments (default bb)."
   [content]
-  (runtime-from-program-arguments (parse-program-arguments content)))
+  (launch/runtime-from-program-arguments (parse-program-arguments content)))
 
 (defn plist-content [{:keys [mode isaac-bin bb-bin bb-edn root runtime log-dir path caller-path]}]
-  (let [args     (program-arguments {:mode      mode
+  (let [args     (launch/program-arguments {:mode      mode
                                      :isaac-bin isaac-bin
                                      :bb-bin    bb-bin
                                      :bb-edn    bb-edn
                                      :root      root
                                      :runtime   runtime})
-        env-path (plist-path {:path        path
+        env-path (launch/service-path {:path        path
                               :caller-path caller-path
                               :bb-bin      bb-bin
                               :isaac-bin   isaac-bin})]
@@ -173,7 +97,8 @@
     (fs/mkdirs fs* (fs/parent plist-p))
     (fs/mkdirs fs* log-d)
     (fs/spit fs* plist-p content)
-    (shell/sh! "launchctl" "bootstrap" (bootstrap-target) plist-p)))
+    (shell/sh! "launchctl" "bootstrap" (bootstrap-target) plist-p)
+    {}))
 
 (defn uninstall! [opts]
   (let [plist-p (plist-file-path)
@@ -216,3 +141,16 @@
             {:log-path log-file :content nil})
         {:log-path log-file :content (fs/slurp fs* log-file)})
       {:log-path log-file :content nil})))
+
+(defrecord LaunchdManager []
+  manager/Manager
+  (service-name [_] label)
+  (install! [_ opts] (install! opts))
+  (uninstall! [_ opts] (uninstall! opts))
+  (start! [_ opts] (start! opts))
+  (stop! [_ opts] (stop! opts))
+  (restart! [_ opts] (restart! opts))
+  (status! [_ opts] (status! opts))
+  (logs! [_ opts] (logs! opts)))
+
+(def manager (->LaunchdManager))

@@ -6,7 +6,6 @@
     [isaac.foundation.cli-steps :as cli-steps]
     [isaac.fs :as fs]
     [isaac.config.root :as root]
-    [isaac.nexus :as nexus]
     [isaac.service.cli :as service-cli]))
 
 (helper! isaac.service.service-steps)
@@ -65,8 +64,8 @@
       (when (= "launchctl" (first argv))
         (g/update! :launchctl-calls #(conj (or % []) argv)))
       (cond
-        (and (= "launchctl" (first argv)) (= "print" (second argv)))
-        {:exit 0 :out (or (g/get :launchctl-print-output) "") :err ""}
+        (contains? (or (g/get :sh-stdout) {}) (first argv))
+        {:exit 0 :out (get (g/get :sh-stdout) (first argv)) :err ""}
 
         (= "which" (first argv))
         (if-let [bin (g/get :which-results)]
@@ -82,13 +81,14 @@
         :else
         {:exit 0 :out "" :err ""}))))
 
-(defn launchctl-stubbed []
+(defn shell-commands-stubbed []
   (g/assoc! :launchctl-calls [])
   (g/assoc! :sh-calls [])
+  (g/assoc! :sh-stdout {})
   (g/assoc! :sh-fn (sh-fn)))
 
-(defn launchctl-print-returns [doc-string]
-  (g/assoc! :launchctl-print-output (str/trim doc-string))
+(defn sh-prints-to-stdout [cmd doc-string]
+  (g/update! :sh-stdout #(assoc (or % {}) cmd (str/trim doc-string)))
   (when-not (g/get :sh-fn)
     (g/assoc! :sh-fn (sh-fn))))
 
@@ -153,9 +153,53 @@
         args       (get (parse-plist content) "ProgramArguments")]
     (g/should= expected (last args))))
 
-(defgiven "launchctl is stubbed" isaac.service.service-steps/launchctl-stubbed)
+(defn- ini-add [m section k v]
+  (update-in m [section k] (fn [existing] (if existing (conj existing v) [v]))))
 
-(defgiven "launchctl print returns:" isaac.service.service-steps/launchctl-print-returns)
+(defn parse-ini
+  "[Section] / key=value text → {section {key [values...]}}. Repeated keys
+   accumulate in order; blank and comment lines are skipped."
+  [content]
+  (loop [lines (str/split-lines content) section nil m {}]
+    (if-let [line (first lines)]
+      (let [line (str/trim line)]
+        (cond
+          (or (str/blank? line) (str/starts-with? line "#") (str/starts-with? line ";"))
+          (recur (rest lines) section m)
+
+          (re-matches #"\[.+\]" line)
+          (recur (rest lines) (subs line 1 (dec (count line))) m)
+
+          :else
+          (let [[k v] (str/split line #"=" 2)]
+            (recur (rest lines) section (ini-add m section (str/trim k) (str/trim (or v "")))))))
+      m)))
+
+(defn- ini-get [ini path]
+  (let [[section key-part] (str/split path #"\." 2)
+        [_ k idx]          (or (re-matches #"(.+)\[(\d+)\]" key-part) [nil key-part nil])
+        values             (get-in ini [section k])]
+    (if idx
+      (nth values (parse-long idx) nil)
+      (when (seq values) (str/join "\n" values)))))
+
+(defn ini-file-matches [path table]
+  (let [file-path (expand-path path)
+        content   (if-let [mem-fs (g/get :mem-fs)]
+                    (fs/slurp mem-fs file-path)
+                    (slurp file-path))
+        ini       (parse-ini content)]
+    (doseq [row (:rows table)]
+      (let [[path expected] row
+            expected        (str/replace expected "~" (root/user-home))
+            actual          (ini-get ini path)]
+        (g/should= expected (str actual))))))
+
+(defgiven "shell commands are stubbed" isaac.service.service-steps/shell-commands-stubbed)
+
+(defgiven "sh {cmd:string} prints to stdout:" isaac.service.service-steps/sh-prints-to-stdout)
+
+(defthen "the INI file {path:string} matches:" isaac.service.service-steps/ini-file-matches)
 
 (defthen "launchctl was called with {expected:string}" isaac.service.service-steps/launchctl-was-called-with)
 

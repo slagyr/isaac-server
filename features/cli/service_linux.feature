@@ -1,4 +1,3 @@
-@wip
 Feature: isaac service — Linux systemd user unit management
   On Linux `isaac service` manages Isaac as a systemd user unit at
   ~/.config/systemd/user/isaac.service, mirroring the macOS LaunchAgent
@@ -12,7 +11,7 @@ Feature: isaac service — Linux systemd user unit management
     And the operating system is "Linux"
     And shell commands are stubbed
 
-  Scenario: packaged install writes the unit and enables it
+  Scenario: packaged install writes the unit, inheriting the CLI root, and enables it
     Given "isaac" resolves to "/opt/marigold/bin/isaac"
     And "bb" resolves to "/opt/marigold/bin/bb"
     And the current process PATH is "/opt/marigold/bin:/usr/bin:/bin"
@@ -20,7 +19,7 @@ Feature: isaac service — Linux systemd user unit management
     Then the INI file "~/.config/systemd/user/isaac.service" matches:
       | path                | value                                |
       | Unit.Description    | Isaac server                         |
-      | Service.ExecStart   | /opt/marigold/bin/isaac server       |
+      | Service.ExecStart   | /opt/marigold/bin/isaac --root /target/test-state server |
       | Service.Environment | PATH=/opt/marigold/bin:/usr/bin:/bin |
       | Service.Restart     | always                               |
       | Install.WantedBy    | default.target                       |
