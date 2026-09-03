@@ -404,17 +404,29 @@
                   (or (g/get :server-config) {}))
       (or (g/get :server-config) {}))))
 
+(defn- feature-root
+  "The scenario root, or the same per-scenario default home the in-process
+   boot step uses. A feature-run server boot must never resolve to the real
+   home root (isaac-stao)."
+  []
+  (or (g/get :root)
+      (let [home (default-server-home)]
+        (when-not (g/get :mem-fs) (clean-real-dir! home))
+        (g/assoc! :root home)
+        home)))
+
 (defn- argv-with-feature-root [argv]
-  (if (and (g/get :root) (not (some #{"--root"} argv)))
-    (into ["--root" (g/get :root)] argv)
-    argv))
+  (if (some #{"--root"} argv)
+    argv
+    (into ["--root" (feature-root)] argv)))
 
 (defn- run-cli-with-stubbed-config!
   "Runs `argv` through isaac.main with loader/load-config-result stubbed to
    the feature root's on-disk config merged with :server-config, block!
    no-op'd, and httpkit server binding stubbed so startup/logging scenarios do
-   not claim real ports. Injects --root from the feature bean when absent so
-   logs and config land under the scenario root."
+   not claim real ports. Always passes --root (the scenario root, else the
+   per-scenario default home under target/) so logs and config never land in
+   the real home root."
   [argv]
   (let [cfg   (feature-server-config)
         argv* (argv-with-feature-root argv)]

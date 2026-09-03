@@ -1,6 +1,8 @@
 Feature: Server log file lifecycle
   The server owns a durable rotated log at <root>/logs/server.log. Short-lived
-  CLI commands do not write that file unless --log-file opts in.
+  CLI commands do not write that file unless --log-file opts in. The harness
+  logs to memory; these scenarios ask for the file explicitly with
+  logging.output = file, the production knob.
 
   Background:
     Given default Grover setup
@@ -8,6 +10,7 @@ Feature: Server log file lifecycle
   Scenario: S1 — the server's active log is logs/server.log
     Given config:
       | key               | value |
+      | logging.output    | file  |
       | server.port       | 0     |
       | server.hot-reload | false |
     When the Isaac server is started
@@ -16,6 +19,7 @@ Feature: Server log file lifecycle
   Scenario: S1b — isaac server CLI dispatch writes logs/server.log
     Given config:
       | key               | value |
+      | logging.output    | file  |
       | server.port       | 0     |
       | server.hot-reload | false |
       | server.auth.token | test  |
@@ -25,6 +29,7 @@ Feature: Server log file lifecycle
   Scenario: kxre — server structured logs stay in server.log, not cli.log
     Given config:
       | key               | value |
+      | logging.output    | file  |
       | server.port       | 0     |
       | server.hot-reload | false |
       | server.auth.token | test  |
@@ -38,6 +43,7 @@ Feature: Server log file lifecycle
     And the clock is fixed at "2026-06-29T12:00:00Z"
     And config:
       | key               | value |
+      | logging.output    | file  |
       | server.port       | 0     |
       | server.hot-reload | false |
     When the Isaac server is started
@@ -47,6 +53,7 @@ Feature: Server log file lifecycle
   Scenario: S2b — size cap rolls within a day
     Given config:
       | key                 | value |
+      | logging.output      | file  |
       | logging.max-bytes   | 2000  |
       | server.port         | 0     |
       | server.hot-reload   | false |
@@ -59,6 +66,7 @@ Feature: Server log file lifecycle
   Scenario: S2c — retention drops archives older than max-days
     Given config:
       | key               | value |
+      | logging.output    | file  |
       | logging.max-days  | 30    |
       | server.port       | 0     |
       | server.hot-reload | false |
