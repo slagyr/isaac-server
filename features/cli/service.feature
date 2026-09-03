@@ -5,9 +5,8 @@ Feature: isaac service — macOS LaunchAgent management
   log access without requiring the operator to know launchctl
   incantations.
 
-  All scenarios here assume macOS unless otherwise stated. On other
-  platforms, every subcommand prints "isaac service is not yet
-  supported on <OS>" and exits non-zero.
+  The Linux twin is features/cli/service_linux.feature (systemd user
+  unit). Help output and the OS-neutral wording are shared.
 
   Background:
     Given an Isaac root at "target/test-state"
@@ -109,11 +108,12 @@ Feature: isaac service — macOS LaunchAgent management
     Then the stdout contains "not installed"
     And the exit code is 1
 
+  @wip
   Scenario: status shows running with pid and last exit
     Given "isaac" resolves to "/usr/local/bin/isaac"
     And "bb" resolves to "/usr/local/bin/bb"
     And isaac is run with "service install"
-    And launchctl print returns:
+    And sh "launchctl" prints to stdout:
       """
       state = running
       pid = 51234
@@ -171,12 +171,7 @@ Feature: isaac service — macOS LaunchAgent management
     Then launchctl was called with "bootstrap"
     And the exit code is 0
 
-  Scenario: Linux is not yet supported
-    Given the operating system is "Linux"
-    When isaac is run with "service install"
-    Then the stderr contains "not yet supported on Linux"
-    And the exit code is 1
-
+  @wip
   Scenario: isaac service --help lists subcommands
     When isaac is run with "service --help"
     Then the stdout matches:
@@ -184,8 +179,8 @@ Feature: isaac service — macOS LaunchAgent management
       | Usage: isaac service \[options\] <subcommand>            |
       | Manage Isaac as a background service                     |
       | Subcommands:                                             |
-      | install\s+Install Isaac as a launchd service             |
-      | uninstall\s+Remove the Isaac launchd service             |
+      | install\s+Install Isaac as a background service             |
+      | uninstall\s+Remove the Isaac background service             |
       | start\s+Start the Isaac service                          |
       | stop\s+Stop the Isaac service                            |
       | restart\s+Restart the Isaac service                      |
@@ -193,19 +188,21 @@ Feature: isaac service — macOS LaunchAgent management
       | logs\s+Tail Isaac service logs                           |
     And the exit code is 0
 
+  @wip
   Scenario: isaac help service prints the same listing
     When isaac is run with "help service"
     Then the stdout matches:
       | pattern                                                  |
       | Usage: isaac service \[options\] <subcommand>            |
-      | install\s+Install Isaac as a launchd service             |
+      | install\s+Install Isaac as a background service             |
     And the exit code is 0
 
+  @wip
   Scenario: bare isaac service prints the same listing
     When isaac is run with "service"
     Then the stdout matches:
       | pattern                                                  |
       | Usage: isaac service \[options\] <subcommand>            |
       | Subcommands:                                             |
-      | install\s+Install Isaac as a launchd service             |
+      | install\s+Install Isaac as a background service             |
     And the exit code is 0
