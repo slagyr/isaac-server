@@ -42,15 +42,16 @@ Feature: MCP route and the mcp-bridge command
 
   Scenario: the mcp-bridge command round-trips initialize, tools/list and tools/call over stdio
     Given a turn "t-stdio" is registered for session "stdio-sess" with tools "exec/run"
-    When the mcp-bridge command is run for turn "t-stdio" with stdin:
+    And stdin is:
       """
       {"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"claude-code","version":"test"}}}
       {"jsonrpc":"2.0","method":"notifications/initialized"}
       {"jsonrpc":"2.0","id":2,"method":"tools/list"}
       {"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"exec__run","arguments":{"command":"echo bridged"}}}
       """
-    Then the mcp-bridge stdout has 3 JSON lines
-    And the mcp-bridge stdout line 1 has "result.serverInfo.name" equal to "isaac"
-    And the mcp-bridge stdout line 2 has "result.tools[0].name" equal to "exec__run"
-    And the mcp-bridge stdout line 3 has "result.content[0].text" matching "bridged"
-    And the exit code is 0
+    When isaac is run with "mcp-bridge --turn t-stdio --server http://127.0.0.1:{server-port} --token s3cr3t"
+    Then the exit code is 0
+    And the stdout lines match:
+      | #"\"id\":1.*\"serverInfo\".*\"name\":\"isaac\"" |
+      | #"\"id\":2.*\"tools\".*\"exec__run\""             |
+      | #"\"id\":3.*\"content\".*bridged"                   |
