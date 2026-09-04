@@ -1,0 +1,24 @@
+{:linters {:refer-all         {:exclude [speclj.core]}
+           :unresolved-symbol {:exclude [after
+                                         around
+                                         before
+                                         context
+                                         describe
+                                         example
+                                         it
+                                         redefs-around
+                                         should
+                                         should=
+                                         should-be-nil
+                                         should-contain
+                                         should-have-invoked
+                                         should-not
+                                         should-not-be-nil
+                                         should-not-contain
+                                         should-not-throw
+                                         should-throw
+                                         stub
+                                         with-stubs
+                                         xcontext
+                                         xdescribe
+                                         xit]}}}
