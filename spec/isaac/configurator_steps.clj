@@ -22,7 +22,7 @@
 
 (def ^:private telly-module-coord
   {:git/url   "https://github.com/slagyr/isaac-agent.git"
-   :git/sha   "632d7fead97bf9c35f9a892a7ace5857c7e68972"
+   :git/sha   "bf4323326c150bdcda4be2c0245cf2f7b0cbd629"
    :deps/root "modules/isaac.comm.telly"})
 
 (defn- ->slot-key [name]

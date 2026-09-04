@@ -14,18 +14,29 @@
 (defprotocol SessionStore
   (open-session! [this name opts])
   (delete-session! [this name])
+  (rename-session! [this old-name new-name])
   (list-sessions [this])
   (list-sessions-by-agent [this agent])
   (most-recent-session [this])
   (get-session [this name])
   (get-transcript [this name])
   (active-transcript [this name])
+  (chronicle-transcript [this name])
   (update-session! [this name updates])
   (append-message! [this name message])
   (append-error! [this name error])
   (append-compaction! [this name compaction])
+  (append-reckoning! [this name reckoning])
   (splice-compaction! [this name compaction])
-  (truncate-after-compaction! [this name]))
+  (truncate-after-compaction! [this name])
+  ;; Durable turn markers (isaac-7li9): resume ROUTING for an in-flight turn,
+  ;; kept at sessions/turns/<session-id>.edn (a store-private detail). The bridge
+  ;; is the only writer. `turn-markers` returns each marker map (including its
+  ;; :session-id).
+  (record-turn-marker! [this session-id marker])
+  (clear-turn-marker! [this session-id])
+  (get-turn-marker [this session-id])
+  (turn-markers [this]))
 
 (defonce ^:private in-flight* (atom {}))
 
@@ -55,6 +66,16 @@
 
 (defn in-flight? [store session-id]
   (contains? (get-in @in-flight* [store :sessions] {}) session-id))
+
+(defn in-flight-sessions [store]
+  (vec (keys (get-in @in-flight* [store :sessions] {}))))
+
+(defn orphaned-turn-markers
+  "Turn markers with no live in-memory in-flight entry for their session (D4):
+   after a restart the atom is empty so every surviving marker is an orphan; at
+   runtime a live turn always has its atom entry so it can never be an orphan."
+  [store]
+  (remove #(in-flight? store (:session-id %)) (turn-markers store)))
 
 (defn in-flight-count [store crew-name]
   (->> (vals (get-in @in-flight* [store :sessions] {}))
@@ -86,17 +107,16 @@
   [impl-kw factory]
   (swap! factories* assoc impl-kw factory))
 
-(def ^:private default-impl :jsonl-edn-sidecar)
+(def ^:private default-impl :ednl-dir)
 (def ^:private impl->ns
-  {:memory          'isaac.session.store.memory
-   :jsonl-edn-index 'isaac.session.store.index
-   default-impl     'isaac.session.store.sidecar})
+  {:memory            'isaac.session.store.memory
+   default-impl       'isaac.session.store.sidecar
+   :jsonl-edn-sidecar 'isaac.session.store.sidecar})
 
 (defn create
   "Create a SessionStore for the given state directory and impl keyword.
-   :memory            — in-memory store (ephemeral, fast)
-   :jsonl-edn-sidecar — file store with per-session EDN sidecar files (default)
-   :jsonl-edn-index   — file store with single combined index"
+   :memory   — in-memory store (ephemeral, fast)
+   :ednl-dir — directory store with current.ednl (default)"
   ([root] (create root default-impl))
   ([root impl]
     (let [factory (or (get @factories* impl)
@@ -161,7 +181,7 @@
   "Create a store and naming strategy from config and register them in the system under :sessions.
    Reads :sessions :store and :sessions :naming-strategy from cfg."
   [cfg root]
-  (let [impl     (get-in cfg [:sessions :store] :jsonl-edn-sidecar)
+  (let [impl     (get-in cfg [:sessions :store] default-impl)
         fs*      (fs/instance)
         store    (create root impl)
         strategy (make-naming-strategy cfg root store fs*)]

@@ -23,9 +23,8 @@ Feature: Server hot-reload logging
       | server.port       | 0      |
     And the Isaac server is started
     When the isaac EDN file "config/isaac.edn" exists with:
-      | path           | value        |
-      | defaults.crew  | harbormaster |
-      | defaults.model | grover       |
+      | path        | value     |
+      | server.host | 127.0.0.1 |
     And the isaac config is reloaded
     Then the log has entries matching:
       | level  | event                         | path      |

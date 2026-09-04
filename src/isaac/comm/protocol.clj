@@ -9,66 +9,85 @@
    paths. Most events come from `isaac.drive.turn`, while command-style
    output such as slash-command responses may be emitted by `isaac.bridge`.
 
-   A Comm impl decides how to render or react to each event on its own
-   surface. Implementations may no-op methods they don't need.
+   Implementors are a state-only deftype plus
+   (extend TheType Comm (merge defaults overrides)) — never inline.
+   New signals add one entry to `defaults`; existing extenders keep working.
 
    `comm`        — the Comm instance (this).
-   `session-key` — string identifying the session the event belongs to."
+   `session-key` — string identifying the session the event belongs to.
+   `cycle`       — {:n n :model \"...\"} for the current LLM call, or nil."
 
   (on-turn-start [comm session-key input]
     "Fired before any LLM call, immediately after the user's input is
      accepted. Useful for ack signals (typing indicator, status pings).
      `input` is the raw user-supplied text.")
 
-  (on-text-chunk [comm session-key text]
-    "Fired for every streaming text fragment emitted during the turn —
-     LLM tokens as they arrive, slash-command output, error text the
-     drive wants to surface. Comm impls typically append `text` to
-     their current output stream.")
+  (on-turn-end [comm session-key result]
+    "Fired exactly once per turn, regardless of outcome. `result` is
+     the final response map for successful turns, or an error map for
+     failed/cancelled turns.")
+
+  (on-cycle-start [comm session-key cycle]
+    "Fired at the start of each LLM call. `cycle` is {:n n :model ...}.")
+
+  (on-cycle-end [comm session-key cycle outcome]
+    "Fired after the LLM call returns. `outcome` is
+     {:outcome :aside|:reply :text \"...\" :tool-calls [...]}.")
+
+  (on-chatter [comm session-key cycle chunk]
+    "Live outward-voice deltas while a cycle is streaming. Classification
+     is unknown until cycle-end. `chunk` is usually a string; fixed-width
+     slash blocks may be a tagged map. Use isaac.comm.render/chunk-text.")
+
+  (on-reckoning [comm session-key cycle chunk]
+    "Inward voice — provider reasoning/thinking. Not addressed to the user.")
+
+  (on-aside [comm session-key cycle text]
+    "Cycle-end outward voice when tool calls followed. Theater aside.")
+
+  (on-reply [comm session-key text]
+    "Cycle-end outward voice with no tool calls — the answer.")
 
   (on-tool-call [comm session-key tool-call]
     "Fired when the LLM requests a tool invocation. `tool-call` is a
-     map with :id (uuid), :name, :arguments, :type. Comm impls may
-     surface the call to the user (e.g., 'Running tool foo...').")
+     map with :id (uuid), :name, :arguments, :type.")
 
   (on-tool-cancel [comm session-key tool-call]
-    "Fired when a pending tool call is cancelled before it ran (user
-     cancelled the turn, deadline elapsed, etc.). `tool-call` is the
-     same map shape as on-tool-call.")
+    "Fired when a pending tool call is cancelled before it ran.")
 
   (on-tool-result [comm session-key tool-call result]
-    "Fired after a tool call completes. `tool-call` is the original
-     call map; `result` is the tool's return value (shape depends on
-     the tool).")
+    "Fired after a tool call completes.")
 
-  (on-compaction-start [comm session-key payload]
-    "Fired when transcript compaction begins. `payload` carries
-     :provider, :model, and trigger metadata (token counts, threshold).
-     Compaction may be inline (during the turn) or asynchronous.")
+  (on-tool-progress [comm session-key tool-call chunk]
+    "Incremental output from a running tool (any tool; exec is one source).")
 
-  (on-compaction-success [comm session-key payload]
-    "Fired when compaction finishes successfully. `payload` carries
-     :summary and any usage/cost data the compactor produced.")
-
-  (on-compaction-failure [comm session-key payload]
-    "Fired when compaction fails. `payload` carries :consecutive-failures,
-     :error, and other diagnostic context. Compaction may auto-disable
-     after repeated failures.")
-
-  (on-compaction-disabled [comm session-key payload]
-    "Fired when compaction was triggered but skipped because it has
-     been disabled (config or auto-disabled after failures).
-     `payload` carries :reason.")
-
-  (on-turn-end [comm session-key result]
-    "Fired exactly once per turn, regardless of outcome. `result` is
-     the final response map ({:message ..., :usage ..., :tool-calls ...})
-     for successful turns, or an error map ({:error keyword, :message ...})
-     for failed/cancelled turns. Impls that want to render errors differently
-     should branch on (:error result) inside this method.")
+  (on-bulletin [comm session-key bulletin]
+    "Something the ship did. `bulletin` is {:kind keyword :payload? ...}
+     with :kind in #{:compaction/start :compaction/success :compaction/failure
+     :compaction/disabled :recall/injected :episodes/opened :turnstile/held ...}.")
 
   (send! [comm record]
-    "Attempt to deliver a queued outbound record. `record` carries :comm,
-     :target, :content, and delivery metadata. Return {:ok true} on success
-     or {:ok false :transient? bool} on failure (transient failures are
-     rescheduled; permanent failures are dead-lettered)."))
+    "Attempt to deliver a queued outbound record. Return {:ok true} on
+     success or {:ok false :transient? bool} on failure. No default —
+     delivery is mandatory per comm."))
+
+(defn- noop
+  "Variadic no-op used as the default for every turn-event method."
+  [& _])
+
+(def defaults
+  "No-op fn per turn-event method. :send! is deliberately absent — every
+   comm must supply delivery."
+  {:on-turn-start    noop
+   :on-turn-end      noop
+   :on-cycle-start   noop
+   :on-cycle-end     noop
+   :on-chatter       noop
+   :on-reckoning     noop
+   :on-aside         noop
+   :on-reply         noop
+   :on-tool-call     noop
+   :on-tool-cancel   noop
+   :on-tool-result   noop
+   :on-tool-progress noop
+   :on-bulletin      noop})
