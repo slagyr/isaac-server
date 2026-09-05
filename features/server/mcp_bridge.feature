@@ -1,4 +1,3 @@
-@wip
 Feature: MCP route and the mcp-bridge command
   The per-turn tool registry (isaac-agent) is exposed on the running
   server as one route, POST /mcp/turns/{turn-id}, behind the server-wide
@@ -49,9 +48,10 @@ Feature: MCP route and the mcp-bridge command
       {"jsonrpc":"2.0","id":2,"method":"tools/list"}
       {"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"exec__run","arguments":{"command":"echo bridged"}}}
       """
-    When isaac is run with "mcp-bridge --turn t-stdio --server http://127.0.0.1:{server-port} --token s3cr3t"
+    When isaac is run with "mcp-bridge --turn t-stdio --server http://127.0.0.1:${server.port} --token s3cr3t"
     Then the exit code is 0
-    And the stdout lines match:
-      | #"\"id\":1.*\"serverInfo\".*\"name\":\"isaac\"" |
-      | #"\"id\":2.*\"tools\".*\"exec__run\""             |
-      | #"\"id\":3.*\"content\".*bridged"                   |
+    And the stdout matches:
+      | pattern |
+      | "id":1.*"serverInfo".*"name":"isaac" |
+      | "id":2.*"tools".*"exec__run" |
+      | "id":3.*"content".*bridged |

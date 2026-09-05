@@ -52,7 +52,7 @@
     (let [manifest (read-manifest "resources/isaac-manifest.edn")]
       (should= #{:isaac.server/route :isaac.server/comm :isaac.server/service}
                 (set (keys (:berths manifest))))
-      (should= #{:server :service} (set (keys (:isaac/cli manifest))))
+      (should= #{:server :service :mcp-bridge} (set (keys (:isaac/cli manifest))))
       (should= #{:server :comms} (set (keys (:isaac.config/schema manifest))))))
 
   (it "every inline :isaac.config/schema contribution meta-validates"

@@ -28,11 +28,19 @@
     [isaac.server.lifecycle :as lifecycle]
     [isaac.server.http :as server-http]
     [isaac.server.routes :as routes]
+    [isaac.step-tables :as match]
+    [isaac.tool.names :as names]
     [org.httpkit.client :as http]
     [org.httpkit.server :as httpkit]
     [taoensso.timbre :as timbre]))
 
 (helper! isaac.server.server-steps)
+
+(g/after-scenario
+  (fn []
+    (when-let [clear-all! (some-> (find-ns 'isaac.mcp.turns)
+                                  (ns-resolve 'clear-all!))]
+      (clear-all!))))
 
 ;; c3kit.apron.refresh logs via timbre and forces :info level, bypassing
 ;; isaac.logger. Disable timbre's default println appender at step-namespace
@@ -552,6 +560,61 @@
                        @(http/get (str (request-base-url) path) {:headers headers}))]
     (g/assoc! :http-response resp)))
 
+(defn- parse-header-line [header]
+  (let [[name value] (str/split header #":\s*" 2)]
+    {name value}))
+
+(defn post-request-with-body [path body]
+  (let [port (g/get :server-port)
+        resp (if (pos? (long (or port 0)))
+               @(http/post (str (request-base-url) path)
+                           {:headers {"Content-Type" "application/json"}
+                            :as      :text
+                            :body    body})
+               (direct-response {:request-method :post
+                                 :uri            path
+                                 :headers        {"content-type" "application/json"}
+                                 :body           body}))]
+    (g/assoc! :http-response resp)))
+
+(defn post-request-with-header-and-body [path header body]
+  (let [port    (g/get :server-port)
+        headers (parse-header-line header)
+        resp    (if (pos? (long (or port 0)))
+                  @(http/post (str (request-base-url) path)
+                              {:headers (assoc headers "Content-Type" "application/json")
+                               :as      :text
+                               :body    body})
+                  (direct-response {:request-method :post
+                                    :uri            path
+                                    :headers        (direct-headers (assoc headers "Content-Type" "application/json"))
+                                    :body           body}))]
+    (g/assoc! :http-response resp)))
+
+(defn- tools-from-csv [tools-str]
+  (->> (str/split (or tools-str "") #",")
+       (map str/trim)
+       (remove str/blank?)
+       (mapv (fn [token]
+               (let [wire (or (names/wire-name token) token)]
+                 {:name        wire
+                  :description wire
+                  :parameters  {:type "object"}})))))
+
+(defn- fixture-tool-fn [_name arguments]
+  (let [exec    (requiring-resolve 'isaac.tool.exec/exec-tool)
+        present (requiring-resolve 'isaac.tool.registry/present-result)]
+    (present (exec arguments))))
+
+(defn turn-registered-with-tools [turn-id session-key tools-str]
+  (let [register! (requiring-resolve 'isaac.mcp.turns/register!)]
+    (register! turn-id {:session-key session-key
+                        :tool-fn     fixture-tool-fn
+                        :tools       (tools-from-csv tools-str)})))
+
+(defn- body-value-at [body path]
+  (match/get-path body path))
+
 (defn post-request [path table]
   (let [port     (g/get :server-port)
         rows     (table->kv-rows table)
@@ -594,10 +657,10 @@
   (g/should-not (g/get :server-port)))
 
 (defn response-body-key-equals [key value]
-  (let [resp (g/get :http-response)
-        body (json/parse-string (:body resp) true)
-        k    (keyword key)]
-    (g/should= value (get body k))))
+  (let [resp   (g/get :http-response)
+        body   (json/parse-string (:body resp) true)
+        actual (body-value-at body key)]
+    (g/should= value (str actual))))
 
 (defn response-body-has-key [key]
   (let [resp (g/get :http-response)
@@ -706,6 +769,18 @@
 (defwhen #"the client sends GET \"([^\"]+)\" with header \"([^\"]+)\"" isaac.server.server-steps/get-request-with-header)
 
 (defwhen #"a POST request is made to \"([^\"]+)\":" isaac.server.server-steps/post-request)
+
+(defwhen "the client sends POST {path:string} with body:"
+  isaac.server.server-steps/post-request-with-body
+  "POST with a JSON docstring body and no extra headers.")
+
+(defwhen "the client sends POST {path:string} with header {header:string} and body:"
+  isaac.server.server-steps/post-request-with-header-and-body
+  "POST with one Authorization-style header and a JSON docstring body.")
+
+(defgiven "a turn {turn-id:string} is registered for session {session-key:string} with tools {tools:string}"
+  isaac.server.server-steps/turn-registered-with-tools
+  "Writes a registry entry so the MCP route can serve tools/list for this turn.")
 
 (defthen "the response status is {code:int}" isaac.server.server-steps/response-status)
 
