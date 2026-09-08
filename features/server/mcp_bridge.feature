@@ -55,3 +55,17 @@ Feature: MCP route and the mcp-bridge command
       | "id":1.*"serverInfo".*"name":"isaac" |
       | "id":2.*"tools".*"exec__run" |
       | "id":3.*"content".*bridged |
+
+  Scenario: mcp-bridge auth failure on tools/list is a JSON-RPC error, never plain text (isaac-o2fh)
+    Given stdin is:
+      """
+      {"jsonrpc":"2.0","id":2,"method":"tools/list"}
+      """
+    When isaac is run with "mcp-bridge --turn t-ghost --server http://127.0.0.1:${server.port} --token wrong-token"
+    Then the exit code is 0
+    And the stdout matches:
+      | pattern |
+      | "id":2.*"error".*"code":-32001.*"unauthorized" |
+    And the log has entries matching:
+      | event                      |
+      | :mcp-bridge/unauthorized   |

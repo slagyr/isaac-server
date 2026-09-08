@@ -6,6 +6,7 @@
     [clojure.tools.cli :as tools-cli]
     [isaac.cli.api :as cli-api]
     [isaac.cli.common :as cli-common]
+    [isaac.logger :as log]
     [org.httpkit.client :as http]))
 
 (def PROTOCOL_VERSION "2025-06-18")
@@ -60,13 +61,25 @@
 (defn- bearer [token]
   (or token (System/getenv "ISAAC_SERVER_TOKEN")))
 
+(defn- unauthorized-rpc [id]
+  {:jsonrpc "2.0"
+   :id      id
+   :error   {:code -32001 :message "unauthorized"}})
+
 (defn- post-message! [{:keys [server turn token]} line]
   (let [resp @(http/post (post-url server turn)
                          {:headers {"Content-Type"  "application/json"
                                     "Authorization" (str "Bearer " (bearer token))}
                           :body    line
-                          :as      :text})]
-    (or (:body resp) "")))
+                          :as      :text})
+        status (:status resp)
+        body   (or (:body resp) "")]
+    (if (or (= 401 status)
+            (= "Unauthorized" (str/trim (str body))))
+      (let [parsed (try (json/parse-string line true) (catch Exception _ {}))]
+        (log/error :mcp-bridge/unauthorized :turn turn :status status)
+        (json/generate-string (unauthorized-rpc (:id parsed))))
+      body)))
 
 (defn- write-line! [line]
   (when (seq (str/trim (str line)))
