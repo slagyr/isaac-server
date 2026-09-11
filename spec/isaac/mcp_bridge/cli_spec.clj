@@ -21,15 +21,22 @@
     (should-be-nil (sut/local-handle (jrpc/request 2 "tools/list"))))
   )
 
+(describe "mcp-bridge Claude route"
+
+  (it "appends the turn id to the caller-supplied route"
+    (should= "http://127.0.0.1:6674/claude/turns/t-route"
+             (#'sut/post-url "http://127.0.0.1:6674/claude/turns/" "t-route")))
+  )
+
 (describe "mcp-bridge option parsing"
 
   (it "parses --turn, --server and --token"
     (let [{:keys [options errors]} (#'sut/parse-option-map ["--turn" "t-stdio"
-                                                            "--server" "http://127.0.0.1:6674"
+                                                            "--server" "http://127.0.0.1:6674/claude/turns"
                                                             "--token" "s3cr3t"])]
       (should= [] (or errors []))
       (should= "t-stdio" (:turn options))
-      (should= "http://127.0.0.1:6674" (:server options))
+      (should= "http://127.0.0.1:6674/claude/turns" (:server options))
       (should= "s3cr3t" (:token options))))
   )
 

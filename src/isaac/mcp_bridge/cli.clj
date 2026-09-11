@@ -1,5 +1,5 @@
 (ns isaac.mcp-bridge.cli
-  "stdio MCP server that proxies JSON-RPC to POST /mcp/turns/{turn-id}."
+  "stdio MCP server that proxies JSON-RPC to POST /claude/turns/{turn-id}."
   (:require
     [cheshire.core :as json]
     [clojure.string :as str]
@@ -13,7 +13,7 @@
 
 (def option-spec
   [[nil "--turn ID" "Turn id registered on the running server"]
-   [nil "--server URL" "Base URL of the Isaac HTTP server"]
+   [nil "--server URL" "Turn route URL (for example http://127.0.0.1:6674/claude/turns)"]
    [nil "--token TOKEN" "Bearer token (falls back to ISAAC_SERVER_TOKEN)"]
    ["-h" "--help" "Show help"]])
 
@@ -56,7 +56,7 @@
       {:jsonrpc "2.0" :id nil :error {:code -32700 :message "Parse error"}})))
 
 (defn- post-url [server turn-id]
-  (str (str/replace server #"/+$" "") "/mcp/turns/" turn-id))
+  (str (str/replace server #"/+$" "") "/" turn-id))
 
 (defn- bearer [token]
   (or token (System/getenv "ISAAC_SERVER_TOKEN")))
