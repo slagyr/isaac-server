@@ -47,6 +47,13 @@
                                                :description "Server-wide inbound auth configuration"
                                                :schema      {:token {:type        :string
                                                                      :description "Bearer token for inbound HTTP requests"}}}
+                                  :burst      {:type        :map
+                                               :description "Unauthenticated burst control. Absent group = off."
+                                               :schema      {:threshold   {:type :int :description "Unauthenticated responses that trip a burst"}
+                                                             :window-ms   {:type :int :description "Sliding window in milliseconds"}
+                                                             :cooldown-ms {:type :int :description "Quiet period that ends a burst"}
+                                                             :notify?     {:type :boolean :description "Post attention on burst start and end"}
+                                                             :throttle?   {:type :boolean :description "Answer flagged clients with 429"}}}
                                   :host       {:type :string :description "Bind host"}
                                   :hot-reload {:type        :boolean
                                                :description "Enable config hot-reload watcher"}

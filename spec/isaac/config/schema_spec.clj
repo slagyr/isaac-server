@@ -18,4 +18,21 @@
 
   (it "server conforms with nested auth token"
     (should= {:host "localhost" :auth {:token "s3cr3t"}}
-             (schema/conform (server-schema) {:host "localhost" :auth {:token "s3cr3t"}}))))
+             (schema/conform (server-schema) {:host "localhost" :auth {:token "s3cr3t"}})))
+
+  (it "server conforms with nested burst knobs"
+    (should= {:host  "localhost"
+              :burst {:threshold   30
+                      :window-ms   60000
+                      :cooldown-ms 600000
+                      :notify?     true
+                      :throttle?   false}}
+             (schema/conform (server-schema)
+                             {:host  "localhost"
+                              :burst {:threshold   30
+                                      :window-ms   60000
+                                      :cooldown-ms 600000
+                                      :notify?     true
+                                      :throttle?   false}})))
+
+  )

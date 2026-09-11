@@ -218,6 +218,25 @@
         (sut/stop!))
       (should= {} @started)))
 
+  (it "does not start background services when the host opts out"
+    (let [started (atom false)]
+      (with-redefs [httpkit/run-server       (fn [_ _] (fn [] nil))
+                    httpkit/server-port      (fn [_] 7001)
+                    httpkit/server-stop!     (fn [_] nil)
+                    scheduler-core/create    (fn [_] ::scheduler)
+                    scheduler-core/start!    identity
+                    scheduler-core/shutdown! (fn [_] nil)
+                    worker/start!            (fn [_]
+                                               (reset! started true)
+                                               ::worker)]
+        (sut/start! {:host                       "127.0.0.1"
+                     :port                       0
+                     :root                       "/tmp/isaac"
+                     :cfg                        {}
+                     :start-background-services? false})
+        (sut/stop!))
+      (should-not @started)))
+
   (it "registers the shared scheduler in isaac.nexus when the server has a state dir"
     (with-redefs [httpkit/run-server       (fn [_ _] (fn [] nil))
                   httpkit/server-port      (fn [_] 7001)

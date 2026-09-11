@@ -26,6 +26,7 @@
     [isaac.spec-helper :as helper]
     [isaac.server.app :as app]
     [isaac.server.lifecycle :as lifecycle]
+    [isaac.server.burst :as burst]
     [isaac.server.http :as server-http]
     [isaac.server.routes :as routes]
     [isaac.step-tables :as match]
@@ -38,6 +39,7 @@
 
 (g/after-scenario
   (fn []
+    (burst/clear-state!)
     (when-let [clear-all! (some-> (find-ns 'isaac.mcp.turns)
                                   (ns-resolve 'clear-all!))]
       (clear-all!))))
@@ -332,6 +334,14 @@
 (defn- default-server-home []
   (str (System/getProperty "user.dir") "/target/test-state/server-default-home"))
 
+(g/before-scenario
+  (fn []
+    (when-not (g/get :root)
+      (let [home (default-server-home)]
+        (clean-real-dir! home)
+        (.mkdirs (java.io.File. (str home "/config")))
+        (g/assoc! :root home)))))
+
 (defn server-running []
   (app/stop!)
   (let [explicit-home? (or (g/get :root) (g/get :root))
@@ -372,6 +382,10 @@
         _              (g/assoc! :config-change-source config-source)
         run-server?    (not (false? (g/get :bind-server-port?)))
         start-opts     {:cfg                  cfg-map
+                         ;; Acceptance requests inspect queued attention before
+                         ;; delivery. Do not let the background worker race the
+                         ;; pending-file assertions.
+                         :start-background-services? false
                          :config-change-source config-source
                          ;; Feature harness reloads synchronously via sync-config-reload!;
                          ;; skip the async poll loop so it does not race on the source.
@@ -530,35 +544,72 @@
   (let [port (g/get :server-port)
         host (or (get-in (current-server-config) [:server :host]) "127.0.0.1")]
     (or (not (pos? (long (or port 0))))
+        (some? (g/get :current-time))
         (contains? #{"::1" "0:0:0:0:0:0:0:1"} host))))
 
+(defn- with-fixed-clock [f]
+  (if-let [ct (g/get :current-time)]
+    (binding [log-file/*now* ct] (f))
+    (f)))
+
+(defn- send-http [method path headers]
+  (let [method-kw (keyword (str/lower-case (name method)))
+        headers   (or headers {})]
+    (with-fixed-clock
+      (fn []
+        (let [resp (if (use-direct-http?)
+                     (direct-response {:request-method method-kw
+                                       :uri            path
+                                       :headers        (direct-headers headers)
+                                       :remote-addr    "127.0.0.1"})
+                     (let [opts {:headers headers}]
+                       @(case method-kw
+                          :get  (http/get (str (request-base-url) path) opts)
+                          :post (http/post (str (request-base-url) path) opts)
+                          (http/request (assoc opts :method method-kw :url (str (request-base-url) path))))))]
+          (g/assoc! :http-response resp))))))
+
 (defn get-request [path]
-  (let [resp (if (use-direct-http?)
-               (direct-response {:request-method :get
-                                 :uri            path
-                                 :headers        {}})
-               @(http/get (str (request-base-url) path)))]
-    (g/assoc! :http-response resp)))
+  (send-http :get path {}))
 
 (defn get-request-with-headers [path table]
   (let [rows    (table->kv-rows table)
-        headers (extract-headers rows)
-        resp    (if (use-direct-http?)
-                  (direct-response {:request-method :get
-                                    :uri            path
-                                    :headers        (direct-headers headers)})
-                  @(http/get (str (request-base-url) path) {:headers headers}))]
-    (g/assoc! :http-response resp)))
+        headers (extract-headers rows)]
+    (send-http :get path headers)))
 
 (defn get-request-with-header [path header]
-  (let [[name value] (str/split header #":\s*" 2)
-        headers      {name value}
-        resp         (if (use-direct-http?)
-                       (direct-response {:request-method :get
-                                         :uri            path
-                                         :headers        (direct-headers headers)})
-                       @(http/get (str (request-base-url) path) {:headers headers}))]
-    (g/assoc! :http-response resp)))
+  (let [[name value] (str/split header #":\s*" 2)]
+    (send-http :get path {name value})))
+
+(defn- as-count [n]
+  (if (number? n) (long n) (parse-long (str n))))
+
+(defn client-sends-n-times [method path n]
+  (dotimes [_ (as-count n)]
+    (send-http method path {})))
+
+(defn client-sends-with-header-n-times [method path header n]
+  (let [[name value] (str/split header #":\s*" 2)]
+    (dotimes [_ (as-count n)]
+      (send-http method path {name value}))))
+
+(defn client-sends-n-times-with-headers [method path n table]
+  (let [rows    (table->kv-rows table)
+        headers (into {} rows)]
+    (dotimes [_ (as-count n)]
+      (send-http method path headers))))
+
+(defn response-body-empty []
+  (let [body (:body (g/get :http-response))]
+    (g/should (or (nil? body) (str/blank? (str body))))))
+
+(defn response-has-no-header [header]
+  (let [resp   (g/get :http-response)
+        actual (some (fn [[k v]]
+                       (when (= (str/lower-case header) (str/lower-case (name k)))
+                         v))
+                     (:headers resp))]
+    (g/should-be-nil actual)))
 
 (defn- parse-header-line [header]
   (let [[name value] (str/split header #":\s*" 2)]
@@ -766,7 +817,20 @@
 
 (defwhen #"a GET request is made to \"([^\"]+)\":" isaac.server.server-steps/get-request-with-headers)
 
-(defwhen #"the client sends GET \"([^\"]+)\" with header \"([^\"]+)\"" isaac.server.server-steps/get-request-with-header)
+(defwhen #"the client sends GET \"([^\"]+)\" with header \"([^\"]+)\"$" isaac.server.server-steps/get-request-with-header)
+
+(defwhen #"the client sends (\w+) \"([^\"]+)\" with header \"([^\"]+)\" (\d+) times"
+  isaac.server.server-steps/client-sends-with-header-n-times
+  "Repeats an HTTP request N times with one header. Last response is what
+   'the response status is' inspects. Binds the foundation clock when fixed.")
+
+(defwhen #"the client sends (\w+) \"([^\"]+)\" (\d+) times$"
+  isaac.server.server-steps/client-sends-n-times
+  "Repeats an HTTP request N times with no extra headers.")
+
+(defwhen "the client sends {method:string} {path:string} {n:int} times with headers:"
+  isaac.server.server-steps/client-sends-n-times-with-headers
+  "Repeats an HTTP request N times with a header table (name | value).")
 
 (defwhen #"a POST request is made to \"([^\"]+)\":" isaac.server.server-steps/post-request)
 
@@ -783,6 +847,10 @@
   "Writes a registry entry so the MCP route can serve tools/list for this turn.")
 
 (defthen "the response status is {code:int}" isaac.server.server-steps/response-status)
+
+(defthen "the response body is empty" isaac.server.server-steps/response-body-empty)
+
+(defthen "the response has no header {header:string}" isaac.server.server-steps/response-has-no-header)
 
 (defthen #"the response header \"([^\"]+)\" matches \"([^\"]+)\"" isaac.server.server-steps/response-header-matches)
 

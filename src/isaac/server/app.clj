@@ -67,7 +67,8 @@
                                  :method (:request-method request)
                                  :uri (:uri request))
                      (refreshing request))]
-    (http/wrap-logging (http/wrap-auth handler-opts scanning))))
+    (http/wrap-burst handler-opts
+      (http/wrap-logging (http/wrap-auth handler-opts scanning)))))
 
 (defn- start-config-reloader! [source root host comm-registry registries]
   ;; The reloader manages the live runtime: runtime/reload! reconciles components
@@ -127,8 +128,8 @@
   (when (and instance (resolve-var stop-sym))
     ((resolve-var stop-sym) instance)))
 
-(defn- start-background-services [_opts scheduler]
-  (if scheduler
+(defn- start-background-services [opts scheduler]
+  (if (and scheduler (not (false? (:start-background-services? opts))))
     {:delivery        (worker/start! {})
      :hail-delivery   (start-optional-service! 'isaac.hail.delivery-worker/start!)
      :hail-router     (start-optional-service! 'isaac.hail.router/start!)}

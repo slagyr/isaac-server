@@ -11,7 +11,8 @@ Feature: Unauthenticated burst control
   the :server :burst group; absent group = off (isaac-udnm).
 
   Background:
-    Given config:
+    Given an Isaac root at "target/burst-state"
+    And config:
       | key                      | value       |
       | log.output               | memory      |
       | server.hot-reload        | false       |
@@ -24,7 +25,6 @@ Feature: Unauthenticated burst control
       | attention.notify.target  | boiler-room |
     And the Isaac server is started
 
-  @wip
   Scenario: thirty unauthenticated requests from one client raise one attention post
     When the client sends GET "/wp-json/wc/v3/payment_gateways" with header "X-Forwarded-For: 203.0.113.9" 29 times
     Then the log has no entries matching:
@@ -41,7 +41,6 @@ Feature: Unauthenticated burst control
       | target  | boiler-room                                                                    |
       | content | contains "203.0.113.9" and "30 requests" and "/wp-json/wc/v3/payment_gateways" |
 
-  @wip
   Scenario: a burst that keeps going posts nothing more
     When the client sends GET "/.env" with header "X-Forwarded-For: 203.0.113.9" 30 times
     And the client sends GET "/xmlrpc.php" with header "X-Forwarded-For: 203.0.113.9" 60 times
@@ -50,7 +49,6 @@ Feature: Unauthenticated burst control
       | :warn | :server/burst-detected | 203.0.113.9 | 30    |
     And the directory "comm/delivery/pending" has exactly 1 file
 
-  @wip
   Scenario: the window is per client
     When the client sends GET "/.env" with header "X-Forwarded-For: 203.0.113.9" 29 times
     And the client sends GET "/.env" with header "X-Forwarded-For: 203.0.113.10" 29 times
@@ -59,7 +57,6 @@ Feature: Unauthenticated burst control
       | :server/burst-detected |
     And the directory "comm/delivery/pending" has exactly 0 files
 
-  @wip
   Scenario: a quiet cooldown ends the burst with a total
     Given the clock is fixed at "2026-03-01T10:00:00Z"
     When the client sends GET "/.env" with header "X-Forwarded-For: 203.0.113.9" 45 times
@@ -70,7 +67,6 @@ Feature: Unauthenticated burst control
       | :info | :server/burst-ended | 203.0.113.9 | 45    |
     And the directory "comm/delivery/pending" has exactly 2 files
 
-  @wip
   Scenario: throttle answers a flagged client with a bare 429 before auth, others unaffected
     Given config:
       | key                    | value |
@@ -89,7 +85,6 @@ Feature: Unauthenticated burst control
       | level | event                   | client      |
       | :info | :server/burst-throttled | 203.0.113.9 |
 
-  @wip
   Scenario: loopback is never throttled
     Given config:
       | key                    | value |
@@ -101,7 +96,6 @@ Feature: Unauthenticated burst control
       | event                   |
       | :server/burst-throttled |
 
-  @wip
   Scenario: config schema lists the burst knobs
     When isaac is run with "config schema server.burst"
     Then the stdout matches:
