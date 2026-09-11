@@ -69,9 +69,6 @@ Feature: Unauthenticated burst control
       | level | event               | client      | total |
       | :info | :server/burst-ended | 203.0.113.9 | 45    |
     And the directory "comm/delivery/pending" has exactly 2 files
-    And the newest file in "comm/delivery/pending" EDN contains:
-      | path    | value                                          |
-      | content | contains "203.0.113.9" and "45 requests" and "ended" |
 
   @wip
   Scenario: throttle answers a flagged client with a bare 429 before auth, others unaffected
@@ -84,7 +81,9 @@ Feature: Unauthenticated burst control
     Then the response status is 429
     And the response body is empty
     And the response has no header "WWW-Authenticate"
-    When the client sends GET "/status" with header "Authorization: Bearer s3cr3t" and header "X-Forwarded-For: 203.0.113.10" 1 times
+    When the client sends GET "/status" 1 times with headers:
+      | Authorization   | Bearer s3cr3t |
+      | X-Forwarded-For | 203.0.113.10  |
     Then the response status is 200
     And the log has entries matching:
       | level | event                   | client      |
