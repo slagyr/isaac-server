@@ -23,6 +23,7 @@
     [isaac.fs :as fs]
     [isaac.logger :as log]
     [isaac.main :as main]
+    [isaac.runner.cli :as runner-cli]
     [isaac.spec-helper :as helper]
     [isaac.server.app :as app]
     [isaac.server.lifecycle :as lifecycle]
@@ -453,7 +454,8 @@
   (let [cfg   (feature-server-config)
         argv* (argv-with-feature-root argv)]
     (log-file/clear-sink-config!)
-    (with-redefs [server/block!             (fn [] nil)
+    (with-redefs [runner-cli/block!         (fn [] nil)
+                  server/block!             (fn [] nil)
                   loader/load-config-result (fn [& _] {:config cfg})
                   httpkit/run-server        (fn [_handler opts] (atom (:port opts)))
                   httpkit/server-port       (fn [s] (or @s 0))
@@ -796,6 +798,8 @@
 (defwhen "the Isaac process is started" isaac.server.server-steps/server-running
   "Alias for 'the Isaac server is started' as a When step. Starts the full
    Isaac process (including comm activation) against the configured state dir.")
+
+(defwhen "the Isaac server is stopped" isaac.server.server-steps/stop-server!)
 
 (defwhen "the server command is run on port {port:int}" isaac.server.server-steps/server-command-run
   "Runs 'isaac server --port N' with server/block! stubbed to no-op and

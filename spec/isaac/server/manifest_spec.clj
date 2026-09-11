@@ -13,7 +13,7 @@
                         keys
                         (map name)
                         set)]
-      (should= #{"server" "service" "mcp-bridge"}
+      (should= #{"mcp-bridge"}
                commands)))
 
   (it "is a builtin module"

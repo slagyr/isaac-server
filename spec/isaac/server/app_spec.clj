@@ -103,28 +103,15 @@
       (should= 'isaac.server.http/root-handler @wrapped-sym)
       (should-not-be-nil @captured)))
 
-  (it "logs dev mode enabled when started in dev mode"
-    (with-redefs [refresh/init            (fn [_ _ _] nil)
-                  refresh/refresh-handler (fn [_] (fn [_request] {:status 200}))
-                  httpkit/run-server      (fn [_ _] (fn [] nil))
-                  httpkit/server-port     (fn [_] 7001)
-                  httpkit/server-stop!    (fn [_] nil)]
-      (sut/start! {:port 0 :host "127.0.0.1" :dev true})
-      (sut/stop!))
-    (let [entry (first (filter #(= :server/dev-mode-enabled (:event %)) @log/captured-logs))]
-      (should-not-be-nil entry)
-      (should= "127.0.0.1" (:host entry))
-      (should= 7001 (:port entry))))
-
   (it "processes route berth contributions from every declared module at startup"
     (let [seen-indexes (atom [])]
       (with-redefs [httpkit/run-server                  (fn [_ _] (fn [] nil))
                     httpkit/server-port                 (fn [_] 7001)
                     httpkit/server-stop!                (fn [_] nil)
-                    module-loader/reconcile-modules!    (fn [_] :started)
-                    module-loader/process-manifest-berths! (fn [module-index]
-                                                             (swap! seen-indexes conj module-index)
-                                                             [])]
+                    isaac.module.lifecycle/reconcile-modules! (fn [_] :started)
+                    isaac.module.berths/process-manifest-berths! (fn [module-index]
+                                                                   (swap! seen-indexes conj module-index)
+                                                                   [])]
         (sut/start! {:host "127.0.0.1"
                      :port 0
                      :cfg  {:module-index
@@ -188,9 +175,9 @@
       (with-redefs [httpkit/run-server           (fn [_ _] (fn [] nil))
                     httpkit/server-port          (fn [_] 7001)
                     httpkit/server-stop!         (fn [_] nil)
-                    module-loader/reconcile-modules! (fn [module-index]
-                                                       (reset! started module-index)
-                                                       :started)]
+                    isaac.module.lifecycle/reconcile-modules! (fn [module-index]
+                                                                (reset! started module-index)
+                                                                :started)]
         (sut/start! {:host "127.0.0.1"
                      :port 0
                      :cfg  {:module-index
@@ -348,10 +335,10 @@
       (with-redefs [httpkit/run-server              (fn [_ _] (fn [] nil))
                     httpkit/server-port             (fn [_] 7001)
                     httpkit/server-stop!            (fn [_] nil)
-                    module-loader/reconcile-modules! (fn [_] :started)
-                    module-loader/shutdown-modules! (fn []
-                                                     (swap! stopped inc)
-                                                     :stopped)]
+                    isaac.module.lifecycle/reconcile-modules! (fn [_] :started)
+                    isaac.module.lifecycle/shutdown-modules! (fn []
+                                                              (swap! stopped inc)
+                                                              :stopped)]
         (sut/start! {:host "127.0.0.1" :port 0 :cfg {}})
         (sut/stop!))
       (should= 1 @stopped)))

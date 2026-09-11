@@ -19,24 +19,15 @@
                                                             :schema  {:namespace     {:type :symbol :validations [:present?]}
                                                                       :extra-schema  {:type :schema-map}
                                                                       :send-schema   {:type :schema-map}
-                                                                      :configurable? {:type :boolean}}}}}
-             :isaac.server/service {:description "Runtime services (Discord client, delivery workers, …). Manifest contributions are inert factory data ({:namespace …} whose load implements isaac.service.factory/create for that id). Gathered at config load (CLI-safe); only the server boot instantiates and starts them, in module topological order."
-                                    :schema      {:type       :map
-                                                  :key-spec   {:type :keyword}
-                                                  :value-spec {:type    :map
-                                                               :schema  {:namespace {:type :symbol :validations [:present?]}}}}}}
+                                                                      :configurable? {:type :boolean}}}}}}
+
+ :isaac/component {:http {:namespace isaac.server.component.http}}
 
  :isaac/log-stream {:server {:file        "logs/server.log"
                             :description "HTTP server logs"}}
 
- :isaac/cli {:server     {:usage     "server [options]"
-                          :summary   "Start the Isaac HTTP server"
-                          :namespace isaac.server.cli}
-             :service    {:usage     "service [options] <subcommand>"
-                          :summary   "Manage Isaac as a background service"
-                          :namespace isaac.service.cli}
-             :mcp-bridge {:usage     "mcp-bridge [options]"
-                          :summary   "stdio MCP server that proxies a turn to POST /claude/turns/{id}"
+ :isaac/cli {:mcp-bridge {:usage     "mcp-bridge [options]"
+                          :summary   "stdio MCP server that proxies a turn to POST /mcp/turns/{id}"
                           :namespace isaac.mcp-bridge.cli}}
 
  :isaac.config/schema

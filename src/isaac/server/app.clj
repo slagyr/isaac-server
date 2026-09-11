@@ -1,26 +1,23 @@
 ;; mutation-tested: 2026-05-06
 (ns isaac.server.app
   (:require
-    [c3kit.apron.refresh :as refresh]
     [clojure.string :as str]
-    [isaac.comm.registry :as comm-registry]
-    [isaac.config.api :as config]
-    [isaac.config.loader :as loader]
-    [isaac.config.server-config :as server-config]
-    [isaac.config.runtime :as runtime]
     [isaac.comm.delivery.worker :as worker]
-    [isaac.session.store.spi :as session-store]
-    [isaac.fs :as fs]
+    [isaac.comm.registry :as comm-registry]
+    [isaac.component.protocol :as component]
+    [isaac.component.registry :as component-registry]
+    [isaac.config.loader :as loader]
     [isaac.config.root :as root]
+    [isaac.config.runtime :as runtime]
+    [isaac.config.server-config :as server-config]
+    [isaac.fs :as fs]
     [isaac.logger :as log]
     [isaac.module.loader :as module-loader]
-    [isaac.scheduler.runtime :as scheduler-core]
-    [isaac.service.runtime :as service-runtime]
-    [isaac.service.supervisor :as supervisor]
     [isaac.nexus :as nexus]
+    [isaac.runner :as runner]
     [isaac.server.http :as http]
     [isaac.server.logging :as server-logging]
-    [org.httpkit.server :as httpkit])
+    [isaac.session.store.spi :as session-store])
   (:import
     (java.time Duration Instant)))
 
@@ -58,31 +55,19 @@
 (defn registries []
   (vec (keep resolve-registry optional-registry-syms)))
 
-
-(defn- dev-handler [handler-opts]
-  (refresh/init refresh/services "isaac" [])
-  (let [refreshing (refresh/refresh-handler 'isaac.server.http/root-handler)
-        scanning   (fn [request]
-                     (log/debug :server/dev-reload-scan
-                                 :method (:request-method request)
-                                 :uri (:uri request))
-                     (refreshing request))]
-    (http/wrap-burst handler-opts
-      (http/wrap-logging (http/wrap-auth handler-opts scanning)))))
-
 (defn- start-config-reloader! [source root host comm-registry registries]
   ;; The reloader manages the live runtime: runtime/reload! reconciles components
   ;; directly into the (global) nexus, so we must NOT capture+restore a runtime
   ;; snapshot the way bound-runtime-fn does for one-shot deferred work — that
   ;; would discard the reconcile. bound-fn still propagates dynamic var bindings.
   (let [reload! (bound-fn [path]
-                  (runtime/reload! {:root     root
-                                   :fs            (fs/instance)
-                                   :old-config    (loader/snapshot "reload: previous config for the reconcile diff")
-                                   :comm-registry comm-registry
-                                   :registries    registries
-                                   :host          host
-                                   :path          path}))]
+                  (runtime/reload! {:root          root
+                                    :fs            (fs/instance)
+                                    :old-config    (loader/snapshot "reload: previous config for the reconcile diff")
+                                    :comm-registry comm-registry
+                                    :registries    registries
+                                    :host          host
+                                    :path          path}))]
     (future
       (loop []
         (when-let [path (runtime/poll! source 5000)]
@@ -99,43 +84,19 @@
       (when (and hot-reload? root)
         (runtime/watch-service-source root))))
 
-(defn- build-handler-opts [opts config-home root]
-  (cond-> (dissoc opts :home)
-    config-home (assoc :home config-home)
-    root   (assoc :root root)
-    true        (assoc :cfg-fn (fn [] (loader/snapshot "http handler: ambient config")))))
-
-(defn- start-http-server [dev? start-http-server? handler-opts port host]
-  (let [handler (when start-http-server?
-                  (if dev?
-                    (dev-handler handler-opts)
-                    (http/create-handler handler-opts)))
-        server  (when start-http-server?
-                  (httpkit/run-server handler {:port port :ip host :legacy-return-value? false}))
-        actual  (if start-http-server? (httpkit/server-port server) port)]
-    {:server server :actual actual}))
-
 (defn- auth-required? [cfg host start-http-server?]
   (and start-http-server?
        (not (http/loopback-host? host))
        (str/blank? (get-in cfg [:server :auth :token]))))
 
-(defn- start-optional-service! [start-sym]
-  (when-let [start! (resolve-var start-sym)]
-    (start! {})))
-
-(defn- stop-optional-service! [stop-sym instance]
-  (when (and instance (resolve-var stop-sym))
-    ((resolve-var stop-sym) instance)))
-
 (defn- start-background-services [opts scheduler]
   (if (and scheduler (not (false? (:start-background-services? opts))))
-    {:delivery        (worker/start! {})
-     :hail-delivery   (start-optional-service! 'isaac.hail.delivery-worker/start!)
-     :hail-router     (start-optional-service! 'isaac.hail.router/start!)}
+    {:delivery (worker/start! {})}
     {}))
 
-(defn- reset-server-state! [host-ctx comm-registry registries config-source connect-ws! reloader scheduler delivery hail-delivery hail-router server actual host start-http-server?]
+(defn- reset-server-state!
+  [host-ctx comm-registry registries config-source connect-ws! reloader scheduler
+   delivery server actual host start-http-server?]
   (reset! state {:host-ctx           host-ctx
                  :registry           comm-registry
                  :registries         registries
@@ -144,39 +105,68 @@
                  :reloader           reloader
                  :scheduler          scheduler
                  :delivery           delivery
-                 :hail-delivery      hail-delivery
-                 :hail-router        hail-router
                  :server             server
                  :port               actual
                  :host               host
                  :start-http-server? start-http-server?
                  :started-at         (Instant/now)}))
 
-(defn start!
-  "Boot the server. Loads config from :root and commits it (or uses an
-   injected :cfg for tests/embedding), validates it, reconciles components, starts
-   background services, and binds the HTTP server. dev? comes from :dev (resolved
-   by the caller from --dev / ISAAC_DEV), port/host from the config with :port /
-   :host overrides. Returns {:port :host}, or nil if config is invalid or a
-   non-loopback bind lacks an auth token."
-  [opts]
-  (when (running?) (stop!))
+(defn- before-components!
+  [startup {:keys [config module-index opts]}]
   (let [root          (:root opts)
-        fs                 (or (:fs opts) (nexus/get :fs) (fs/real-fs))
-        load-result        (when (and (not (:cfg opts)) root)
-                             (loader/load-config-result {:root root :fs fs}))
-        cfg                (cond-> (or (:cfg opts) (:config load-result) {})
-                             root (assoc :root root))
-        comm-registry      @comm-registry/*registry*
-        registries         (registries)
-        server-cfg         (server-config/server-config cfg)
-        port               (or (:port opts) (:port server-cfg))
-        host               (or (:host opts) (:host server-cfg))
-        dev?               (true? (:dev opts))
-        hot-reload?        (:hot-reload server-cfg)
-        start-http-server? (not (false? (:start-http-server? opts)))
-        config-home        (some-> root fs/parent)
-        connect-ws!        (:connect-ws! opts)]
+        registries    (:registries @startup)
+        comm-registry (:comm-registry @startup)
+        host-ctx      (:host-ctx @startup)
+        scheduler     (nexus/get :scheduler)
+        config-source (start-config-source opts (:hot-reload (server-config/server-config config)) root)]
+    (runtime/install! {:config config :registries registries :host host-ctx})
+    (runtime/install-config-berths! {:config config :module-index module-index})
+    (some-> config-source runtime/start!)
+    (swap! startup assoc
+           :config-source config-source
+           :scheduler scheduler)))
+
+(defn- after-components!
+  [startup {:keys [config opts]}]
+  (let [{:keys [comm-registry config-source host-ctx registries scheduler]} @startup
+        root          (:root opts)
+        start-http?   (not (false? (:start-http-server? opts)))
+        server        (component-registry/instance-for :http)
+        actual        (if start-http?
+                        (component/bound-port server)
+                        (:port opts))
+        reloader      (when (and config-source root
+                                 (not (false? (:start-config-reloader? opts))))
+                        (start-config-reloader! config-source root host-ctx comm-registry registries))
+        _             (when-let [store (session-store/registered-store)]
+                        (when-let [resume! (resolve-var 'isaac.bridge.resume/resume-interrupted-turns!)]
+                          (log/info :server/boot-phase :phase :resume)
+                          (resume! {:session-store store :root root :cfg config})))
+        {:keys [delivery]} (start-background-services opts scheduler)]
+    (log/info :server/boot-summary (module-loader/boot-stats (:module-index host-ctx)))
+    (reset-server-state! host-ctx comm-registry registries config-source
+                         (:connect-ws! opts) reloader scheduler delivery server
+                         actual (:host @startup) start-http?)
+    (reset! (:result @startup) {:port actual :host (:host @startup)})))
+
+(defn start!
+  "Boot the server through foundation's process runner. Returns {:port :host},
+   or nil if config is invalid or a non-loopback bind lacks an auth token."
+  [opts]
+  (when (running?)
+    (stop!))
+  (let [root          (:root opts)
+        fs*           (or (:fs opts) (nexus/get :fs) (fs/real-fs))
+        load-result   (when (and (not (:cfg opts)) root)
+                        (loader/load-config-result {:root root :fs fs*}))
+        cfg            (cond-> (or (:cfg opts) (:config load-result) {})
+                         root (assoc :root root))
+        comm-registry @comm-registry/*registry*
+        registries    (registries)
+        server-cfg    (server-config/server-config cfg)
+        port          (or (:port opts) (:port server-cfg))
+        host          (or (:host opts) (:host server-cfg))
+        start-http?   (not (false? (:start-http-server? opts)))]
     (cond
       (and load-result (seq (:errors load-result)) (not (:missing-config? load-result)))
       (do (log/error :config/invalid :root root :errors (:errors load-result)) nil)
@@ -184,116 +174,74 @@
       (seq (runtime/validate-config! cfg comm-registry))
       nil
 
-      (auth-required? cfg host start-http-server?)
+      (auth-required? cfg host start-http?)
       (do (log/error :server/auth-required
                      :host host
                      :message "missing :server :auth :token for non-loopback bind")
           nil)
 
       :else
-      (let [_                       (nexus/init! {:fs fs})
-            _                       (when root (root/init-root! root))
-            _                       (when root (server-logging/configure! root cfg))
-            module-index            (merge (module-loader/builtin-index) (:module-index cfg))
-            scheduler               (when root
-                                      (-> (scheduler-core/create {})
-                                          scheduler-core/start!))
-            _                       (when scheduler
-                                      (nexus/register! [:scheduler] scheduler))
-            host-ctx                (host-context (assoc cfg :module-index module-index) root connect-ws!)
-            _                       (config/dangerously-install-config! cfg "server boot")
-            _                       (runtime/install! {:config cfg :registries registries :host host-ctx})
-            ;; isaac-8yxs: per-entry berth :factory invocation. Runs
-            ;; here (after config commit, before module on-load) so
-            ;; the berth registrations are in the nexus by the time
-            ;; modules boot. Must run OUTSIDE loader/load-config-result's
-            ;; nested-nexus wrap — that wrap restores the prior nexus
-            ;; state on exit, which would discard the factories' writes.
-            ;;
-            ;; Phase 5 of brth (isaac-8v1n): the :isaac.server/route
-            ;; berth also flows through here, replacing the explicit
-            ;; register-route-extensions! pass.
-            _                       (log/info :server/boot-phase :phase :discover
-                                                :modules (count module-index))
-            _                       (log/info :server/boot-phase :phase :load)
-            _                       (module-loader/reconcile-modules! module-index)
-            _                       (log/info :server/boot-phase :phase :activate)
-            _                       (module-loader/activate-modules! module-index)
-            _                       (module-loader/process-manifest-berths! module-index)
-            _                       (runtime/install-config-berths! {:config cfg :module-index module-index})
-            _                       (log/info :server/boot-phase :phase :start)
-            _                       (service-runtime/start-all! module-index)
-            _                       (do (supervisor/reset-health!)
-                                        (supervisor/start! service-runtime/started-services))
-            config-source           (start-config-source opts hot-reload? root)
-            _                       (some-> config-source runtime/start!)
-            reloader                (when (and config-source root
-                                               (not (false? (:start-config-reloader? opts))))
-                                      (start-config-reloader! config-source root host-ctx comm-registry registries))
-            handler-opts            (build-handler-opts opts config-home root)
-            {:keys [server actual]} (start-http-server dev? start-http-server? handler-opts port host)
-            _                       (when-let [store (session-store/registered-store)]
-                                      (when-let [resume! (resolve-var 'isaac.bridge.resume/resume-interrupted-turns!)]
-                                        (log/info :server/boot-phase :phase :resume)
-                                        (resume! {:session-store store
-                                                  :root          root
-                                                  :cfg           cfg})))
-            {:keys [delivery hail-delivery hail-router]} (start-background-services opts scheduler)]
-        (when (and dev? start-http-server?)
-          (log/info :server/dev-mode-enabled :host host :port actual))
-        (log/info :server/boot-summary (module-loader/boot-stats module-index))
-        (reset-server-state! host-ctx comm-registry registries config-source connect-ws! reloader scheduler delivery hail-delivery hail-router server actual host start-http-server?)
-        {:port actual :host host}))))
+      (let [_            (when root (root/init-root! root))
+            _            (when root (server-logging/configure! root cfg))
+            module-index (merge (module-loader/builtin-index) (:module-index cfg))
+            host-ctx     (host-context (assoc cfg :module-index module-index) root (:connect-ws! opts))
+            result       (atom nil)
+            startup      (atom {:comm-registry comm-registry
+                                :host          host
+                                :host-ctx      host-ctx
+                                :registries    registries
+                                :result        result})
+            runner-opts  (-> opts
+                             (assoc :config cfg
+                                    :fs fs*
+                                    :host host
+                                    :module-index module-index
+                                    :port port
+                                    :root root))]
+        (log/info :server/boot-phase :phase :discover :modules (count module-index))
+        (log/info :server/boot-phase :phase :load)
+        (log/info :server/boot-phase :phase :activate)
+        (log/info :server/boot-phase :phase :start)
+        (binding [runner/*before-components* #(before-components! startup %)
+                  runner/*after-components*  #(after-components! startup %)]
+          (runner/start! runner-opts))
+        @result))))
+
+(defn- before-stop! [running]
+  (log/info :server/shutdown-starting)
+  (when-let [delivery (:delivery running)]
+    (log/info :server/shutdown-phase :phase :delivery)
+    (worker/stop! delivery))
+  (let [cfg        (current-config)
+        timeout-ms (or (get-in cfg [:server :suspend-timeout-ms]) 15000)
+        store      (session-store/registered-store)]
+    (when (and store (resolve 'isaac.bridge.suspend/suspend!))
+      (log/info :server/shutdown-phase :phase :suspend :timeout-ms timeout-ms)
+      ((resolve 'isaac.bridge.suspend/suspend!)
+       {:timeout-ms timeout-ms :session-store store})))
+  (when-let [registries (:registries running)]
+    (log/info :server/shutdown-phase :phase :config-reconcile)
+    (let [cfg (loader/snapshot "shutdown: current config for teardown reconcile")]
+      (runtime/reconcile! (:host-ctx running) cfg nil registries)
+      (runtime/install-config-berths! {:config       nil
+                                       :old-config   cfg
+                                       :module-index (get-in running [:host-ctx :module-index])}))))
+
+(defn- after-stop! [running]
+  (some-> (:reloader running) future-cancel)
+  (when-let [config-source (:config-source running)]
+    (log/info :server/shutdown-phase :phase :config-source)
+    (runtime/stop! config-source))
+  (let [uptime-ms (when-let [started-at (:started-at running)]
+                    (.toMillis (Duration/between started-at (Instant/now))))]
+    (log/info :server/stopped :uptime-ms uptime-ms)))
 
 (defn stop! []
   (when (compare-and-set! stopping? false true)
     (try
-      (when-let [{:keys [config-source scheduler delivery hail-delivery hail-router
-                         host-ctx registries reloader server started-at]}
-                 (take-running-state!)]
-        (log/info :server/shutdown-starting)
-        (when delivery
-          (log/info :server/shutdown-phase :phase :delivery)
-          (worker/stop! delivery))
-        (when hail-delivery
-          (log/info :server/shutdown-phase :phase :hail-delivery)
-          (stop-optional-service! 'isaac.hail.delivery-worker/stop! hail-delivery))
-        (when hail-router
-          (log/info :server/shutdown-phase :phase :hail-router)
-          (stop-optional-service! 'isaac.hail.router/stop! hail-router))
-        (let [cfg (current-config)
-              timeout-ms (or (get-in cfg [:server :suspend-timeout-ms]) 15000)
-              store (session-store/registered-store)]
-          (when (and store (resolve 'isaac.bridge.suspend/suspend!))
-            (log/info :server/shutdown-phase :phase :suspend :timeout-ms timeout-ms)
-            ((resolve 'isaac.bridge.suspend/suspend!)
-             {:timeout-ms timeout-ms :session-store store})))
-        (log/info :server/shutdown-phase :phase :services)
-        (supervisor/stop!)
-        (service-runtime/stop-all!)
-        (log/info :server/shutdown-phase :phase :modules)
-        (module-loader/shutdown-modules!)
-        (when scheduler
-          (log/info :server/shutdown-phase :phase :scheduler)
-          (scheduler-core/shutdown! scheduler))
-        (when registries
-          (log/info :server/shutdown-phase :phase :config-reconcile)
-          (let [cfg (loader/snapshot "shutdown: current config for teardown reconcile")]
-            (runtime/reconcile! host-ctx cfg nil registries)
-            (runtime/install-config-berths! {:config       nil
-                                             :old-config   cfg
-                                             :module-index (:module-index host-ctx)})))
-        (some-> reloader future-cancel)
-        (when config-source
-          (log/info :server/shutdown-phase :phase :config-source)
-          (runtime/stop! config-source))
-        (when server
-          (log/info :server/shutdown-phase :phase :http)
-          (if (fn? server)
-            (server)
-            (httpkit/server-stop! server)))
-        (let [uptime-ms (when started-at
-                          (.toMillis (Duration/between started-at (Instant/now))))]
-          (log/info :server/stopped :uptime-ms uptime-ms)))
+      (when-let [running (take-running-state!)]
+        (binding [runner/*before-stop* (fn [_] (before-stop! running))
+                  runner/*after-stop*  (fn [_] (after-stop! running))]
+          (runner/stop!)))
       (finally
         (reset! stopping? false)))))

@@ -2,8 +2,8 @@
   (:require
     [cheshire.core :as json]
     [isaac.server.status :as sut]
-    [isaac.service.protocol :as protocol]
-    [isaac.service.supervisor :as supervisor]
+    [isaac.component.protocol :as protocol]
+    [isaac.component.supervisor :as supervisor]
     [speclj.core :refer :all])
   (:import
     (java.time Instant)))
@@ -12,7 +12,7 @@
 
 (defn- dead-service []
   (reify
-    protocol/Service (start [_]) (stop [_])
+    protocol/Component (start [_]) (stop [_])
     protocol/Supervised (alive? [_] false)))
 
 (defn- body [response]

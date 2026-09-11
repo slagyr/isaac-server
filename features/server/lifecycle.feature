@@ -15,14 +15,12 @@ Feature: Server lifecycle bookends
       | :info | :server/hello | #*      | #*      | #*   | false | #*  |
 
   Scenario: the console bids the crew farewell on shutdown
-    Given the widget test service module is registered
-    And config:
+    Given config:
       | key               | value |
       | server.auth.token | shh   |
     When the Isaac server is started
     And the Isaac server is stopped
     Then the log has entries matching:
-      | level | event                     | service |
-      | :info | :server/shutdown-starting |         |
-      | :info | :service/stopped          | widget  |
-      | :info | :server/stopped           |         |
+      | level | event                     |
+      | :info | :server/shutdown-starting |
+      | :info | :server/stopped           |
