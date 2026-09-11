@@ -2,7 +2,6 @@
 (ns isaac.server.app
   (:require
     [clojure.string :as str]
-    [isaac.comm.delivery.worker :as worker]
     [isaac.comm.registry :as comm-registry]
     [isaac.component.protocol :as component]
     [isaac.component.registry :as component-registry]
@@ -16,8 +15,7 @@
     [isaac.nexus :as nexus]
     [isaac.runner :as runner]
     [isaac.server.http :as http]
-    [isaac.server.logging :as server-logging]
-    [isaac.session.store.spi :as session-store])
+    [isaac.server.logging :as server-logging])
   (:import
     (java.time Duration Instant)))
 
@@ -89,14 +87,9 @@
        (not (http/loopback-host? host))
        (str/blank? (get-in cfg [:server :auth :token]))))
 
-(defn- start-background-services [opts scheduler]
-  (if (and scheduler (not (false? (:start-background-services? opts))))
-    {:delivery (worker/start! {})}
-    {}))
-
 (defn- reset-server-state!
   [host-ctx comm-registry registries config-source connect-ws! reloader scheduler
-   delivery server actual host start-http-server?]
+   server actual host start-http-server?]
   (reset! state {:host-ctx           host-ctx
                  :registry           comm-registry
                  :registries         registries
@@ -104,7 +97,6 @@
                  :connect-ws!        connect-ws!
                  :reloader           reloader
                  :scheduler          scheduler
-                 :delivery           delivery
                  :server             server
                  :port               actual
                  :host               host
@@ -115,7 +107,6 @@
   [startup {:keys [config module-index opts]}]
   (let [root          (:root opts)
         registries    (:registries @startup)
-        comm-registry (:comm-registry @startup)
         host-ctx      (:host-ctx @startup)
         scheduler     (nexus/get :scheduler)
         config-source (start-config-source opts (:hot-reload (server-config/server-config config)) root)]
@@ -127,7 +118,7 @@
            :scheduler scheduler)))
 
 (defn- after-components!
-  [startup {:keys [config opts]}]
+  [startup {:keys [opts]}]
   (let [{:keys [comm-registry config-source host-ctx registries scheduler]} @startup
         root          (:root opts)
         start-http?   (not (false? (:start-http-server? opts)))
@@ -137,15 +128,10 @@
                         (:port opts))
         reloader      (when (and config-source root
                                  (not (false? (:start-config-reloader? opts))))
-                        (start-config-reloader! config-source root host-ctx comm-registry registries))
-        _             (when-let [store (session-store/registered-store)]
-                        (when-let [resume! (resolve-var 'isaac.bridge.resume/resume-interrupted-turns!)]
-                          (log/info :server/boot-phase :phase :resume)
-                          (resume! {:session-store store :root root :cfg config})))
-        {:keys [delivery]} (start-background-services opts scheduler)]
+                        (start-config-reloader! config-source root host-ctx comm-registry registries))]
     (log/info :server/boot-summary (module-loader/boot-stats (:module-index host-ctx)))
     (reset-server-state! host-ctx comm-registry registries config-source
-                         (:connect-ws! opts) reloader scheduler delivery server
+                         (:connect-ws! opts) reloader scheduler server
                          actual (:host @startup) start-http?)
     (reset! (:result @startup) {:port actual :host (:host @startup)})))
 
@@ -209,16 +195,6 @@
 
 (defn- before-stop! [running]
   (log/info :server/shutdown-starting)
-  (when-let [delivery (:delivery running)]
-    (log/info :server/shutdown-phase :phase :delivery)
-    (worker/stop! delivery))
-  (let [cfg        (current-config)
-        timeout-ms (or (get-in cfg [:server :suspend-timeout-ms]) 15000)
-        store      (session-store/registered-store)]
-    (when (and store (resolve 'isaac.bridge.suspend/suspend!))
-      (log/info :server/shutdown-phase :phase :suspend :timeout-ms timeout-ms)
-      ((resolve 'isaac.bridge.suspend/suspend!)
-       {:timeout-ms timeout-ms :session-store store})))
   (when-let [registries (:registries running)]
     (log/info :server/shutdown-phase :phase :config-reconcile)
     (let [cfg (loader/snapshot "shutdown: current config for teardown reconcile")]

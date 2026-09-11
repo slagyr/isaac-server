@@ -6,8 +6,8 @@
    the config change source that drives hot reload.
 
    This surface exists so server callers requiring lifecycle behavior don't
-   drag isaac.comm.registry / isaac.session.store.spi (pulled in transitively by
-   install / configurator) into read-only foundation code. Everything outside
+   drag isaac.comm.registry (pulled in transitively by install / configurator)
+   into read-only foundation code. Everything outside
    the isaac.config.* namespaces requires *only* config.loader, config.api (test
    write helpers), and/or config.runtime — never install /
    configurator /
@@ -25,9 +25,8 @@
 ;; ----- install (config -> nexus) -----
 
 (defn install!
-  "Reconciles an already-committed config into the nexus: ensures the session
-   store, then reconciles the given registries' config slices into the nexus as
-   live component instances (the snapshot must already be committed). opts keys:
+  "Reconciles an already-committed config into the nexus by reconciling the
+   given registries' config slices as live component instances (the snapshot must already be committed). opts keys:
    :config (required), :old-config (nil on boot), :registries, :host. Returns
    {:config config}."
   [opts]

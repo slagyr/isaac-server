@@ -3,13 +3,12 @@
      [c3kit.apron.refresh :as refresh]
      [isaac.config.runtime :as runtime]
      [isaac.fs :as fs]
-     [isaac.comm.delivery.worker :as worker]
-     [isaac.session.store.spi :as session-store]
      [isaac.logger :as log]
      [isaac.marigold-server :as marigold-server]
-     [isaac.server.test-store]
-     [isaac.module.loader :as module-loader]
+     [isaac.module.berths]
+     [isaac.module.lifecycle]
      [isaac.scheduler.runtime :as scheduler-core]
+     [isaac.server.test-store]
      [isaac.server.app :as sut]
      [isaac.nexus :as nexus]
      [isaac.spec-helper :as helper]
@@ -29,8 +28,8 @@
   ;; Default stubs so each test boots in microseconds, not seconds. The
   ;; main offender was runtime/watch-service-source — it starts a real
   ;; FSwatcher and sleeps 1s for FSEvents to settle (change_source_bb.clj).
-  ;; httpkit / scheduler / workers are stubbed so the suite doesn't bind
-  ;; real ports, spawn real thread pools, or start real polling workers.
+  ;; httpkit and the scheduler are stubbed so the suite doesn't bind real
+  ;; ports or spawn real thread pools.
   ;; Tests that need to capture or assert against a specific stub re-stub
   ;; it locally.
   (redefs-around [runtime/watch-service-source (fn [_] nil)
@@ -141,35 +140,6 @@
       (should (pos-int? (:activated summary)))
       (should= 0 (:failed summary))))
 
-  (it "logs the resume boot phase before starting the delivery worker when startup resume is available"
-    (let [events (atom [])]
-      (with-redefs [httpkit/run-server                 (fn [_ _] (fn [] nil))
-                    httpkit/server-port                (fn [_] 7001)
-                    httpkit/server-stop!               (fn [_] nil)
-                    scheduler-core/create              (fn [_] ::scheduler)
-                    scheduler-core/start!              identity
-                    scheduler-core/shutdown!           (fn [_] nil)
-                    session-store/registered-store     (fn [] ::store)
-                    sut/resolve-var                    (fn [sym]
-                                                         (case sym
-                                                           isaac.bridge.resume/resume-interrupted-turns!
-                                                           (fn [opts] (swap! events conj [:resume opts]))
-                                                           nil))
-                    worker/start!                      (fn [opts]
-                                                         (swap! events conj [:worker opts])
-                                                         ::worker)]
-        (sut/start! {:host "127.0.0.1" :port 0 :root "/tmp/isaac" :cfg {}})
-        (sut/stop!))
-      (should= [[:resume {:session-store ::store
-                          :root          "/tmp/isaac"
-                          :cfg           {:root "/tmp/isaac"}}]
-                [:worker {}]]
-               @events)
-      (let [resume-log (first (filter #(and (= :server/boot-phase (:event %))
-                                            (= :resume (:phase %)))
-                                     @log/captured-logs))]
-        (should-not-be-nil resume-log))))
-
   (it "starts loaded modules during server boot"
     (let [started (atom nil)]
       (with-redefs [httpkit/run-server           (fn [_ _] (fn [] nil))
@@ -187,51 +157,13 @@
       (should (contains? @started :isaac.foundation))
       (should (contains? @started :isaac.fake.pigeon))))
 
-  (it "starts the delivery worker when the server has a state dir"
-    (let [started (atom nil)]
-      (with-redefs [httpkit/run-server       (fn [_ _] (fn [] nil))
-                    httpkit/server-port      (fn [_] 7001)
-                    httpkit/server-stop!     (fn [_] nil)
-                    scheduler-core/create    (fn [_] ::scheduler)
-                    scheduler-core/start!    identity
-                    scheduler-core/shutdown! (fn [_] nil)
-                    worker/start!            (fn [opts]
-                                               (reset! started opts)
-                                               ::worker)]
-        (sut/start! {:host      "127.0.0.1"
-                     :port      0
-                     :root "/tmp/isaac"
-                     :cfg       {}})
-        (sut/stop!))
-      (should= {} @started)))
-
-  (it "does not start background services when the host opts out"
-    (let [started (atom false)]
-      (with-redefs [httpkit/run-server       (fn [_ _] (fn [] nil))
-                    httpkit/server-port      (fn [_] 7001)
-                    httpkit/server-stop!     (fn [_] nil)
-                    scheduler-core/create    (fn [_] ::scheduler)
-                    scheduler-core/start!    identity
-                    scheduler-core/shutdown! (fn [_] nil)
-                    worker/start!            (fn [_]
-                                               (reset! started true)
-                                               ::worker)]
-        (sut/start! {:host                       "127.0.0.1"
-                     :port                       0
-                     :root                       "/tmp/isaac"
-                     :cfg                        {}
-                     :start-background-services? false})
-        (sut/stop!))
-      (should-not @started)))
-
   (it "registers the shared scheduler in isaac.nexus when the server has a state dir"
     (with-redefs [httpkit/run-server       (fn [_ _] (fn [] nil))
                   httpkit/server-port      (fn [_] 7001)
                   httpkit/server-stop!     (fn [_] nil)
                   scheduler-core/create    (fn [_] ::scheduler)
                   scheduler-core/start!    identity
-                  scheduler-core/shutdown! (fn [_] nil)
-                  worker/start!            (fn [_] ::worker)]
+                  scheduler-core/shutdown! (fn [_] nil)]
       (sut/start! {:host      "127.0.0.1"
                    :port      0
                    :root "/tmp/isaac"
@@ -256,11 +188,10 @@
       (should= nil (:connect-ws! @captured))
       (should (contains? (:module-index @captured) :isaac.foundation))))
 
-  (it "returns nil and does not start services when config validation fails"
+  (it "returns nil and does not start HTTP when config validation fails"
     (let [started (atom nil)]
       (with-redefs [runtime/validate-config! (fn [_ _] [{:key "server.port" :value "bad"}])
-                    httpkit/run-server    (fn [& _] (reset! started :http))
-                    worker/start!         (fn [& _] (reset! started :worker))]
+                    httpkit/run-server       (fn [& _] (reset! started :http))]
         (should= nil (sut/start! {:cfg {:server {:port 6674}}}))
         (should= nil @started)
         (should-not (sut/running?)))))
@@ -276,41 +207,19 @@
       (should-contain ":server :auth :token" (:message entry))))
 
   (it "skips HTTP startup when :start-http-server? is false"
-    (let [started-http (atom nil)
-          started      (atom nil)]
-      (with-redefs [httpkit/run-server      (fn [& _] (reset! started-http true))
-                    scheduler-core/create   (fn [_] ::scheduler)
-                    scheduler-core/start!   identity
-                    scheduler-core/shutdown! (fn [_] nil)
-                    worker/start!           (fn [opts] (reset! started opts) ::worker)
-                    worker/stop!            (fn [_] nil)]
+    (let [started-http (atom nil)]
+      (with-redefs [httpkit/run-server       (fn [& _] (reset! started-http true))
+                    scheduler-core/create    (fn [_] ::scheduler)
+                    scheduler-core/start!    identity
+                    scheduler-core/shutdown! (fn [_] nil)]
         (should= {:port 7777 :host "127.0.0.1"}
                  (sut/start! {:cfg                {}
                               :port               7777
                               :host               "127.0.0.1"
-                              :root          "/tmp/isaac"
+                              :root               "/tmp/isaac"
                               :start-http-server? false}))
         (sut/stop!))
-      (should= nil @started-http)
-      (should= {} @started)))
-
-  (it "stops the delivery worker with the server"
-    (let [stopped (atom nil)]
-      (with-redefs [httpkit/run-server      (fn [_ _] (fn [] nil))
-                    httpkit/server-port     (fn [_] 7001)
-                    httpkit/server-stop!    (fn [_] nil)
-                    scheduler-core/create   (fn [_] ::scheduler)
-                    scheduler-core/start!   identity
-                    scheduler-core/shutdown! (fn [_] nil)
-                    worker/start!           (fn [_] ::worker)
-                    worker/stop!            (fn [worker]
-                                              (reset! stopped worker))]
-        (sut/start! {:host      "127.0.0.1"
-                     :port      0
-                     :root "/tmp/isaac"
-                     :cfg       {}})
-        (sut/stop!))
-       (should= ::worker @stopped)))
+      (should= nil @started-http)))
 
   (it "shuts down the shared scheduler with the server"
     (let [stopped (atom nil)]
@@ -320,9 +229,7 @@
                     scheduler-core/create    (fn [_] ::scheduler)
                     scheduler-core/start!    identity
                     scheduler-core/shutdown! (fn [scheduler]
-                                                (reset! stopped scheduler))
-                    worker/start!            (fn [_] ::worker)
-                    worker/stop!             (fn [_] nil)]
+                                                (reset! stopped scheduler))]
         (sut/start! {:host      "127.0.0.1"
                      :port      0
                      :root "/tmp/isaac"
@@ -394,9 +301,7 @@
   (it "logs shutdown-starting, phases, and stopped on teardown"
     (with-redefs [scheduler-core/create    (fn [_] ::scheduler)
                   scheduler-core/start!    identity
-                  scheduler-core/shutdown! (fn [_] nil)
-                  worker/start!            (fn [_] ::worker)
-                  worker/stop!             (fn [_] nil)]
+                  scheduler-core/shutdown! (fn [_] nil)]
       (sut/start! {:host "127.0.0.1" :port 0 :cfg {}})
       (sut/stop!))
     (let [events (mapv :event @log/captured-logs)]

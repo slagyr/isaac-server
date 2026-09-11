@@ -1,7 +1,6 @@
 (ns isaac.config.install
-  "Single coordinator for turning config into runtime state. Populates the
-   nexus: ensures the session store, then reconciles the config-driven
-   components (comms, hail, hooks, cron) directly into the nexus as live
+  "Single coordinator for turning config into runtime state. Reconciles the
+   config-driven components (comms, hail, hooks, cron) directly into the nexus as live
    instances. Entry points call this instead of building config and installing
    components ad hoc.
 
@@ -15,17 +14,11 @@
     [isaac.comm.registry :as comm-registry]
     [isaac.config.configurator :as configurator]
     [isaac.logger :as log]
-    [isaac.module.loader :as module-loader]
-    [isaac.session.store.spi :as store]))
-
-(defn- ensure-store! [config]
-  (when-not (store/registered-store)
-    (when-let [root (:root config)]
-      (store/register! config root))))
+    [isaac.module.loader :as module-loader]))
 
 (defn install!
-  "Reconcile an already-committed config into the nexus: ensure the session store,
-   then reconcile the given registries' config slices into the nexus as live
+  "Reconcile an already-committed config into the nexus by reconciling the
+   given registries' config slices into the nexus as live
    component instances. The snapshot must already be committed (via load-config!
    or dangerously-install-config!) — install! no longer commits it.
 
@@ -36,7 +29,6 @@
      :host        - host context for reconcile! (module-index, connect-ws!, ...)
    Returns {:config config}."
   [{:keys [config old-config registries host]}]
-  (ensure-store! config)
   (when (seq registries)
     (configurator/reconcile! host old-config config registries))
   {:config config})
