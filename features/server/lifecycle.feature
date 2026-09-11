@@ -14,13 +14,12 @@ Feature: Server lifecycle bookends
       | level | event         | runtime | version | root | dev   | pid |
       | :info | :server/hello | #*      | #*      | #*   | false | #*  |
 
-  Scenario: the console bids the crew farewell on shutdown
+  Scenario: the runner records shutdown
     Given config:
       | key               | value |
       | server.auth.token | shh   |
     When the Isaac server is started
     And the Isaac server is stopped
     Then the log has entries matching:
-      | level | event                     |
-      | :info | :server/shutdown-starting |
-      | :info | :server/stopped           |
+      | level | event           |
+      | :info | :runner/stopped |

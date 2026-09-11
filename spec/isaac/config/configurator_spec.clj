@@ -6,7 +6,7 @@
     [isaac.logger :as log]
     [isaac.fs :as fs]
     [isaac.module.loader :as module-loader]
-    [isaac.server.app :as app]
+    [isaac.server.component.runtime :as server-runtime]
     [isaac.nexus :as nexus]
     [speclj.core :refer :all]))
 
@@ -58,7 +58,7 @@
   (describe "schema ownership"
 
     (defn- owned-paths []
-      (into (->> (app/registries) (map :path) set)
+      (into (->> (server-runtime/-registries) (map :path) set)
             (berths/config-paths (module-loader/builtin-index))))
 
     (defn- entity-collection-entry? [[_ entry]]

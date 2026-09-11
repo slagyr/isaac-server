@@ -4,6 +4,8 @@
     [clojure.edn :as edn]
     [clojure.string :as str]
     [gherclj.core :as g :refer [defgiven defwhen defthen helper!]]
+    [isaac.component.protocol]
+    [isaac.component.registry]
     [isaac.config.loader :as loader]
     [isaac.config.runtime :as runtime]
     [isaac.config.server-config :as srv-config]
@@ -19,6 +21,7 @@
     [isaac.session.store.spi :as store]
     [isaac.comm.factory :as comm-factory]
     [isaac.comm.registry :as comm-registry]
+    [isaac.server.component.runtime :as server-runtime]
     [isaac.nexus :as nexus]
     [isaac.fs :as fs]
     [isaac.logger :as log]
@@ -127,16 +130,16 @@
 
 (defn- sync-config-reload! [source]
   (when (app/running?)
-    (let [{:keys [host-ctx registry registries]} @app/state
+    (let [{:keys [comm-registry host registries]} (server-runtime/running-state)
           root (g/get :runtime-root-dir)]
       (loop []
         (when-let [rel (runtime/poll! source 0)]
           (runtime/reload! {:root          root
                             :fs            (server-fs)
                             :old-config    (loader/snapshot "feature: reload old-config")
-                            :comm-registry registry
+                            :comm-registry comm-registry
                             :registries    registries
-                            :host          host-ctx
+                            :host          host
                             :path          rel})
           (recur))))))
 
@@ -382,7 +385,8 @@
                            (runtime/watch-service-source home)))
         _              (g/assoc! :config-change-source config-source)
         run-server?    (not (false? (g/get :bind-server-port?)))
-        start-opts     {:cfg                  cfg-map
+        start-opts     {:config               cfg-map
+                         :module-index          (:module-index cfg-map)
                          ;; Acceptance requests inspect queued attention before
                          ;; delivery. Do not let the background worker race the
                          ;; pending-file assertions.
@@ -403,15 +407,18 @@
                          :root            runtime-state
                         :start-http-server?   run-server?}]
     (g/assoc! :runtime-root-dir runtime-state)
-    (g/assoc! :server-handler-opts {:cfg-fn    (fn [] (or (some-> app/state deref :cfg deref) cfg-map))
+    (g/assoc! :server-handler-opts {:cfg-fn    (fn [] (or (loader/snapshot "feature: handler config") cfg-map))
                                     :root runtime-state
                                     :home      home})
     (let [start! (fn []
                    (server-logging/configure! runtime-state cfg-map)
                    (lifecycle/reset-hello!)
                    (lifecycle/emit-hello! runtime-state (:dev start-opts))
-                   (when-let [{:keys [port]} (app/start! start-opts)]
-                     (g/assoc! :server-port port)))]
+                   (app/start! start-opts)
+                   (when run-server?
+                     (g/assoc! :server-port
+                               (some-> (isaac.component.registry/instance-for :http)
+                                       isaac.component.protocol/bound-port))))]
       (if-let [ct (g/get :current-time)]
         (binding [log-file/*now* ct] (start!))
         (start!)))))

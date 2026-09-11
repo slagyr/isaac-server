@@ -21,7 +21,8 @@
                                                                       :send-schema   {:type :schema-map}
                                                                       :configurable? {:type :boolean}}}}}}
 
- :isaac/component {:http {:namespace isaac.server.component.http}}
+ :isaac/component {:server-runtime {:namespace isaac.server.component.runtime}
+                   :http           {:namespace isaac.server.component.http}}
 
  :isaac/log-stream {:server {:file        "logs/server.log"
                             :description "HTTP server logs"}}

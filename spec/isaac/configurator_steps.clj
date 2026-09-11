@@ -7,6 +7,7 @@
     [isaac.config.berths :as berths]
     [isaac.config.loader :as loader]
     [isaac.config.runtime :as runtime]
+    [isaac.server.component.runtime :as server-runtime]
     [isaac.reconfigurable :as reconfigurable]
     [isaac.logger :as log]
     [isaac.foundation.root-steps :as froot]
@@ -212,15 +213,15 @@
 
 (defn- reload-running-server! [path old-config]
   (when (app/running?)
-    (when-let [{:keys [host-ctx registry registries]} (deref app/state)]
+    (when-let [{:keys [comm-registry host registries]} (server-runtime/running-state)]
       (let [root (or (g/get :runtime-root-dir) (g/get :root))
             fs*  (server-fs)
             rel  (runtime/reload! {:root           root
                                    :fs             fs*
                                    :old-config     old-config
-                                   :comm-registry  registry
+                                   :comm-registry  comm-registry
                                    :registries     registries
-                                   :host           host-ctx
+                                   :host           host
                                    :path           path})]
         (g/should (some? rel))))))
 

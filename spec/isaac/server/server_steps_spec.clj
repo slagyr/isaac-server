@@ -48,7 +48,7 @@
                                  {:port 7788 :host "0.0.0.0"})
                     app/stop!  (fn [] nil)]
         (sut/server-running))
-      (should= 7788 (get-in (:cfg @started) [:server :port]))
+      (should= 7788 (get-in (:config @started) [:server :port]))
       (should= virtual-home (:root @started))))
 
   (it "can skip binding a real port for reload-only scenarios"
