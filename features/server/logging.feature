@@ -21,3 +21,10 @@ Feature: Server request logging
     Then the log has entries matching:
       | level  | event                   | uri    | status |
       | :error | :server/request-failed  | /error | 500    |
+
+  Scenario: the originating client is logged, first X-Forwarded-For hop behind a proxy
+    When the client sends GET "/status" with header "X-Forwarded-For: 203.0.113.9, 10.0.0.1"
+    Then the log has entries matching:
+      | level  | event                    | uri     | client      |
+      | :debug | :server/request-received | /status | 203.0.113.9 |
+      | :debug | :server/response-sent    | /status | 203.0.113.9 |

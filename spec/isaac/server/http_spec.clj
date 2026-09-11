@@ -68,6 +68,21 @@
           (should= :get (:method received))
           (should= "/status" (:uri received)))))
 
+    (it "logs the socket peer as :client when no proxy header is present"
+      (let [handler (sut/create-handler)]
+        (handler {:request-method :get :uri "/status" :remote-addr "10.1.2.3"})
+        (let [received (first (filter #(= :server/request-received (:event %)) @log/captured-logs))
+              sent     (first (filter #(= :server/response-sent (:event %)) @log/captured-logs))]
+          (should= "10.1.2.3" (:client received))
+          (should= "10.1.2.3" (:client sent)))))
+
+    (it "logs the first X-Forwarded-For hop as :client behind a proxy"
+      (let [handler (sut/create-handler)]
+        (handler {:request-method :get :uri "/status" :remote-addr "127.0.0.1"
+                  :headers {"x-forwarded-for" "203.0.113.9, 10.0.0.1"}})
+        (let [received (first (filter #(= :server/request-received (:event %)) @log/captured-logs))]
+          (should= "203.0.113.9" (:client received)))))
+
     (it "logs request-failed with ex-class and error-message on exception"
       (let [handler (sut/create-handler (fn [_] (throw (Exception. "handler exploded"))))]
         (handler {:request-method :get :uri "/boom"})

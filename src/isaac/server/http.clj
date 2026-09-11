@@ -38,21 +38,35 @@
                    "WWW-Authenticate" "Bearer"}
          :body "Unauthorized"}))))
 
+(defn client-address
+  "The originating client: the first hop of X-Forwarded-For when a proxy
+   (Tailscale Funnel, ngrok) fronts the server, else the socket peer. Logged
+   on every request so an unauthenticated scan is attributable."
+  [request]
+  (let [forwarded (some-> (get-in request [:headers "x-forwarded-for"])
+                          (str/split #",")
+                          first
+                          str/trim
+                          not-empty)]
+    (or forwarded (:remote-addr request))))
+
 (defn wrap-logging [handler]
   (fn [request]
     (let [method (:request-method request)
           uri    (:uri request)
+          client (client-address request)
           start  (System/currentTimeMillis)]
-      (log/debug :server/request-received :method method :uri uri)
+      (log/debug :server/request-received :method method :uri uri :client client)
       (try
         (let [response (handler request)
               ms       (- (System/currentTimeMillis) start)]
-          (log/debug :server/response-sent :method method :uri uri :status (:status response) :ms ms)
+          (log/debug :server/response-sent :method method :uri uri :status (:status response) :ms ms :client client)
           response)
         (catch Exception e
           (let [ms (- (System/currentTimeMillis) start)]
            (log/ex :server/request-failed e {:method method
                                               :uri    uri
+                                              :client client
                                               :status 500
                                               :ms     ms}))
           {:status 500 :headers {"Content-Type" "text/plain"} :body "Internal Server Error"})))))                       
