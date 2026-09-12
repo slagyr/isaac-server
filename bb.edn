@@ -38,6 +38,11 @@
                       :requires ([isaac.foundation.config-bypass-lint :as lint])
                       :task (apply lint/lint! (or (seq *command-line-args*) ["src"]))}
 
+  pins {:doc  "Check sibling git pins against the configured module registry"
+        :task (if-let [command (System/getenv "ISAAC")]
+                (shell "bash" "-lc" (str command " modules pins"))
+                (shell "isaac" "modules" "pins"))}
+
   spec {:doc  "Run speclj specs natively in babashka (pass file/dir to narrow)"
         :requires ([bb.test-tasks :as tests])
         :task (apply tests/run-spec! *command-line-args*)}
@@ -95,6 +100,7 @@
   ci {:doc  "Run unit specs + acceptance features (native bb path)"
       :requires ([babashka.process :as process])
       :task (do (run 'config-bypass-lint)
+                (run 'pins)
                 (let [{:keys [exit]} (if (seq *command-line-args*)
                                        (apply process/shell "bb" "spec" *command-line-args*)
                                        (process/shell "bb" "spec"))]
