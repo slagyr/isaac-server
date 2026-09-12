@@ -39,9 +39,17 @@
                       :task (apply lint/lint! (or (seq *command-line-args*) ["src"]))}
 
   pins {:doc  "Check sibling git pins against the configured module registry"
-        :task (if-let [command (System/getenv "ISAAC")]
-                (shell "bash" "-lc" (str command " modules pins"))
-                (shell "isaac" "modules" "pins"))}
+        :requires ([babashka.fs :as fs])
+        :task (let [sibling "../isaac-foundation/libexec/isaac"]
+                (cond
+                  (fs/executable? sibling)
+                  (shell sibling "modules" "pins")
+
+                  (System/getenv "ISAAC")
+                  (shell "bash" "-lc" (str (System/getenv "ISAAC") " modules pins"))
+
+                  :else
+                  (shell "isaac" "modules" "pins")))}
 
   spec {:doc  "Run speclj specs natively in babashka (pass file/dir to narrow)"
         :requires ([bb.test-tasks :as tests])
