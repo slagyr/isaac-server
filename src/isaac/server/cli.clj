@@ -55,7 +55,8 @@
         fs*           (or (:fs opts) (nexus/get :fs) (fs/real-fs))
         ;; CLIs load config at their entry point (never reload — that's a
         ;; server-only concern); app/start! resolves port/host and commits it.
-        loaded-config (:config (loader/load-config-result {:root root-dir :fs fs*}))
+        load-result   (loader/load-config-result {:root root-dir :fs fs*})
+        loaded-config (:config load-result)
         ;; dev mode is an environment/launch concern, not config: --dev overrides,
         ;; otherwise the ISAAC_DEV env var.
         dev?          (if (contains? opts :dev)
@@ -69,11 +70,12 @@
       (lifecycle/reset-hello!)
       (lifecycle/emit-hello! root-dir dev?)
       (if-let [{started-port :port started-host :host}
-               (app/start! {:cfg       loaded-config
-                            :root      root-dir
-                            :dev       dev?
-                            :port      (when port (parse-long (str port)))
-                            :host      host})]
+               (app/start! {:cfg           loaded-config
+                            :config-errors (:errors load-result)
+                            :root          root-dir
+                            :dev           dev?
+                            :port          (when port (parse-long (str port)))
+                            :host          host})]
         (do
           (log/info :server/started :host started-host :port started-port)
           (println (str "Isaac server running on " started-host ":" started-port))

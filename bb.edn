@@ -19,7 +19,7 @@
         io.github.slagyr/isaac-foundation {:git/url "https://github.com/slagyr/isaac-foundation.git"
                                            :git/sha "1cd0bfc16c0684e36e9eda48f132943c00adeb56"}
         io.github.slagyr/isaac-agent {:git/url "https://github.com/slagyr/isaac-agent.git"
-                                      :git/sha "243c0e161d4dcdb186912b9aaa0da50f188d24d9"}
+                                      :git/sha "b6284e42ab37ccf971637d4dc791856c7fa231aa"}
         io.github.slagyr/isaac-foundation-spec {:git/url "https://github.com/slagyr/isaac-foundation.git"
                                                 :git/sha "1cd0bfc16c0684e36e9eda48f132943c00adeb56"
                                                 :deps/root "spec"}
@@ -31,11 +31,7 @@
                                          :deps/root "modules/marigold.bridge"}
         marigold.longwave/marigold.longwave {:git/url "https://github.com/slagyr/isaac-foundation.git"
                                              :git/sha "1cd0bfc16c0684e36e9eda48f132943c00adeb56"
-                                             :deps/root "modules/marigold.longwave"}
-        isaac.comm.telly/isaac.comm.telly {:git/url "https://github.com/slagyr/isaac-agent.git"
-                                           :git/sha "243c0e161d4dcdb186912b9aaa0da50f188d24d9"
-                                           :deps/root "modules/isaac.comm.telly"
-                                           :exclusions [io.github.slagyr/isaac]}}
+                                             :deps/root "modules/marigold.longwave"}}
 
  :tasks
  {config-bypass-lint {:doc "Fail on raw config slurp/read outside isaac.config.* (isaac-foundation-test-support)"

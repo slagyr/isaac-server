@@ -1,4 +1,4 @@
-{:paths ["src"]
+{:paths ["src" "resources"]
  :deps  {io.github.slagyr/isaac-foundation-spec {:git/url "https://github.com/slagyr/isaac-foundation.git"
                                                  :git/sha "d4a7bf10a039e6b4f229defc38333ee2a5d7cc32"
                                                  :deps/root "spec"}

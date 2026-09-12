@@ -1,6 +1,7 @@
 (ns isaac.server.app
   (:require
     [isaac.config.loader :as loader]
+    [isaac.logger :as log]
     [isaac.runner :as runner]
     [isaac.server.component.runtime :as runtime]))
 
@@ -10,12 +11,20 @@
 (defn current-config []
   (loader/snapshot "server/current-config accessor"))
 
+(defn- log-config-errors! [errors]
+  (doseq [{:keys [key path value]} errors]
+    (log/error :config/validation-error :path (or path key) :message value)))
+
 (defn start! [opts]
   (let [config (or (:config opts) (:cfg opts) {})
-        opts*  (cond-> (assoc opts :config config)
+        errors (:config-errors opts)
+        opts*  (cond-> (-> opts
+                           (dissoc :config-errors)
+                           (assoc :config config))
                  (:module-index config) (assoc :module-index (:module-index config)))]
-    (when (runtime/valid-start? config opts*)
-      (runner/start! opts*))))
+    (cond
+      (seq errors) (log-config-errors! errors)
+      (runtime/valid-start? config opts*) (runner/start! opts*))))
 
 (defn stop! []
   (runner/stop!))

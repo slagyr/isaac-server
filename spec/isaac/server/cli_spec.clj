@@ -92,6 +92,12 @@
       (with-out-str (sut/run {}))
       (should= "s3cr3t" (get-in @started [:cfg :server :auth :token])))
 
+    (it "passes generic loader errors to app startup"
+      (swap! config-stub assoc :errors [{:key "comms.bigbird"
+                                         :value "unknown :type \"unknown-type\""}])
+      (with-out-str (sut/run {}))
+      (should= (:errors @config-stub) (:config-errors @started)))
+
     (it "prints the host and port on startup"
       (let [output (with-out-str (sut/run {:port "5000"}))]
         (should (re-find #"5000" output))))

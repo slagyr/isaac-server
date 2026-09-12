@@ -15,6 +15,16 @@
         (should= ::started (sut/start! opts)))
       (should= opts (select-keys @seen (keys opts)))))
 
+  (it "rejects loader errors before delegating startup"
+    (let [started? (atom false)]
+      (with-redefs [runtime/valid-start? (constantly true)
+                    runner/start!        (fn [_] (reset! started? true))]
+        (should-be-nil
+          (sut/start! {:config        {}
+                       :config-errors [{:key "comms.bigbird"
+                                        :value "unknown :type \"unknown-type\""}]})))
+      (should-not @started?)))
+
   (it "delegates shutdown to Foundation"
     (with-redefs [runner/stop! (constantly ::stopped)]
       (should= ::stopped (sut/stop!))))

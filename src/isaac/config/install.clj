@@ -11,7 +11,6 @@
     [clojure.string :as str]
     [isaac.config.berths :as berth-config]
     [isaac.config.loader :as config]
-    [isaac.comm.registry :as comm-registry]
     [isaac.config.configurator :as configurator]
     [isaac.logger :as log]
     [isaac.module.loader :as module-loader]))
@@ -73,44 +72,13 @@
                                (str/join "\n"))]
       {:reason :validation :error formatted-error})))
 
-(defn- dotted-path [path]
-  (str/join "." (map configurator/->name path)))
-
-(defn- comm-validation-errors [cfg registry]
-  ;; an impl is known when a module contributes it (lazy activation) or
-  ;; an embedder registered it programmatically (isaac.api).
-  (let [path      (:path registry)
-        mod-index (:module-index cfg)
-        cont      (get-in cfg path)]
-    (->> cont
-         (keep (fn [[slot slice]]
-                 (when (map? slice)
-                   (let [impl     (configurator/slot-impl slot slice)
-                         lazy?    (some #(or (get-in % [:manifest :isaac.server/comm (keyword (configurator/->name impl))])
-                                                  (get-in % [:manifest :isaac.agent/comm (keyword (configurator/->name impl))]))
-                                        (vals mod-index))
-                         slot-pth (dotted-path (conj (vec path) slot))]
-                     (when (and impl (not lazy?) (not (comm-registry/registered? impl)))
-                       {:path slot-pth :message (str "unknown :type " (pr-str impl))})))))
-         (remove nil?)
-         vec)))
-
-(defn validate-config!
-  "Logs any comm-impl validation errors against the given comm registry. Returns
-   the seq of errors (empty if cfg is valid). Used at boot and on reload."
-  [cfg comm-registry]
-  (let [errors (comm-validation-errors cfg comm-registry)]
-    (doseq [{:keys [path message]} errors]
-      (log/error :config/validation-error :path path :message message))
-    errors))
-
 (defn reload!
   "Hot-reload coordinator (server only): re-load config from `root`/`fs`,
-   validate it (parse + semantic + comm-impl against `comm-registry`); on any
+   validate it through the loader's schema and contributed checks; on any
    error, log and KEEP the running config (returns nil); on success, commit the
    new snapshot and reconcile `registries` against `old-config`. Returns the new
    config on success, nil if rejected."
-  [{:keys [root fs old-config comm-registry registries host path]}]
+  [{:keys [root fs old-config registries host path]}]
   (log/info :config.reload/begin :path path)
   (let [load-result (config/load-config-result {:root root :fs fs :raw-parse-errors? true})
         errors      (:errors load-result)
@@ -120,9 +88,6 @@
       (let [{:keys [error reason]} (reload-failure path errors)]
         (log/error :config/reload-failed :error error :path path :reason reason)
         nil)
-
-      (seq (validate-config! new-cfg comm-registry))
-      nil
 
       :else
       (do

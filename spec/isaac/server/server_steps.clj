@@ -68,11 +68,11 @@
 (froot/register-root-setup-hook!
   (fn [abs-dir]
     (reset! comm-registry/*registry* (comm-registry/fresh-registry))
-    (when-let [ns-obj (find-ns 'isaac.comm.telly)]
+    (when-let [ns-obj (find-ns 'isaac.server.test-comm)]
       (remove-ns (ns-name ns-obj))
       (let [loaded-libs (var-get #'clojure.core/*loaded-libs*)]
-        (dosync (alter loaded-libs disj 'isaac.comm.telly)))
-      (remove-method comm-factory/create :telly))
+        (dosync (alter loaded-libs disj 'isaac.server.test-comm)))
+      (remove-method comm-factory/create :test-comm))
     (when-let [create-store (try (requiring-resolve 'isaac.session.store.memory/create-store)
                                  (catch Throwable _ nil))]
       (store/register-store! (create-store abs-dir)))))
@@ -233,18 +233,22 @@
 (defn- config-file-path []
   (str (g/get :root) "/config/isaac.edn"))
 
-(defn- load-server-config [root fs*]
-  (let [load!       #(:config (loader/load-config-result {:root root :fs fs*}))
+(defn- load-server-config-result [root fs*]
+  (let [load!       #(loader/load-config-result {:root root :fs fs*})
         entity-dir? #(with-server-fs
                        (fn []
                          (seq (fs/children fs* (str root "/config/" %)))))
-        cfg         (load!)]
+        result      (load!)
+        cfg         (:config result)]
     (if (and (or (entity-dir? "crew") (entity-dir? "models") (entity-dir? "providers"))
              (empty? (or (:crew cfg) {}))
              (empty? (or (:models cfg) {}))
              (empty? (or (:providers cfg) {})))
       (load!)
-      cfg)))
+      result)))
+
+(defn- load-server-config [root fs*]
+  (:config (load-server-config-result root fs*)))
 
 ;; region ----- Setup -----
 
@@ -363,8 +367,9 @@
                              (g/assoc! :root virtual-home))
                            virtual-home))
         runtime-state  home
+        load-result    (with-server-fs #(load-server-config-result home (server-fs)))
         cfg-map        (let [fs*     (server-fs)
-                             base    (with-server-fs #(load-server-config home fs*))
+                             base    (:config load-result)
                              merged  (deep-merge base
                                                  (merge (or (g/get :server-config) {})
                                                         (when-let [providers (g/get :provider-configs)]
@@ -386,6 +391,7 @@
         _              (g/assoc! :config-change-source config-source)
         run-server?    (not (false? (g/get :bind-server-port?)))
         start-opts     {:config               cfg-map
+                         :config-errors        (:errors load-result)
                          :module-index          (:module-index cfg-map)
                          ;; Acceptance requests inspect queued attention before
                          ;; delivery. Do not let the background worker race the

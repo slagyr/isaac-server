@@ -19,12 +19,8 @@
 
 (helper! isaac.configurator-steps)
 
-(def ^:private telly-module-id :isaac.comm.telly)
-
-(def ^:private telly-module-coord
-  {:git/url   "https://github.com/slagyr/isaac-agent.git"
-   :git/sha   "bf4323326c150bdcda4be2c0245cf2f7b0cbd629"
-   :deps/root "modules/isaac.comm.telly"})
+(def ^:private test-comm-module-id :isaac.server.test-comm)
+(def ^:private test-comm-module-coord {:local/root "spec-support"})
 
 (defn- ->slot-key [name]
   (keyword name))
@@ -44,10 +40,10 @@
     :else                                value))
 
 (defn- read-state [instance]
-  (let [telly? (requiring-resolve 'isaac.comm.telly/telly?)
-        state  (requiring-resolve 'isaac.comm.telly/state)]
+  (let [test-comm? (requiring-resolve 'isaac.server.test-comm/test-comm?)
+        state      (requiring-resolve 'isaac.server.test-comm/state)]
     (cond
-      (telly? instance)            (state instance)
+      (test-comm? instance)        (state instance)
       (some-> (:state* instance))  @(:state* instance)
       (map? instance)              instance
       :else                        {})))
@@ -67,21 +63,21 @@
     (nexus/-with-nested-nexus {:fs mem} (f))
     (f)))
 
-(defn- persist-telly-module! []
+(defn- persist-test-comm-module! []
   (with-server-fs
     (fn []
       (let [path    (isaac-edn-path)
             fs*     (server-fs)
             current (if (fs/exists? fs* path) (edn/read-string (fs/slurp fs* path)) {})]
         (fs/mkdirs fs* (fs/parent path))
-        (fs/spit fs* path (pr-str (assoc-in current [:modules telly-module-id] telly-module-coord)))))))
+        (fs/spit fs* path (pr-str (assoc-in current [:modules test-comm-module-id] test-comm-module-coord)))))))
 
 (defn comm-is-registered [impl]
-  (let [ns-sym       (symbol (str "isaac.comm." impl))
+  (let [ns-sym       'isaac.server.test-comm
         _            (require ns-sym)
-        make-factory (requiring-resolve (symbol (str ns-sym "/make")))]
-    (g/update! :server-config #(assoc-in (or % {}) [:modules telly-module-id] telly-module-coord))
-    (persist-telly-module!)
+        make-factory (requiring-resolve 'isaac.server.test-comm/make)]
+    (g/update! :server-config #(assoc-in (or % {}) [:modules test-comm-module-id] test-comm-module-coord))
+    (persist-test-comm-module!)
     (comm-registry/register-factory! impl make-factory))
   (g/should (comm-registry/registered? impl)))
 

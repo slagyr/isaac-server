@@ -17,9 +17,9 @@ Feature: Comm extension
       {:log    {:output :memory}
        :server {:hot-reload false}
        :crew   {:main {}}
-       :modules {:isaac.comm.telly {:git/url "https://github.com/slagyr/isaac-agent.git", :git/sha "bf4323326c150bdcda4be2c0245cf2f7b0cbd629", :deps/root "modules/isaac.comm.telly"}}
-       :comms  {:north-bot {:type :telly :crew :main}
-                :south-bot {:type :telly :crew :main}}}
+       :modules {:isaac.server.test-comm {:local/root "spec-support"}}
+       :comms  {:north-bot {:type :test-comm :crew :main :loft "north"}
+                :south-bot {:type :test-comm :crew :main :loft "south"}}}
       """
     When the Isaac server is started
     Then the log has entries matching:

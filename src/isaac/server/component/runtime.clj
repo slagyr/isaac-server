@@ -1,6 +1,5 @@
 (ns isaac.server.component.runtime
   (:require
-    [isaac.comm.registry :as comm-registry]
     [isaac.component.factory :as component-factory]
     [isaac.component.protocol :as component]
     [isaac.component.registry :as component-registry]
@@ -35,14 +34,13 @@
       (when (and root (get-in config [:server :hot-reload]))
         (runtime/watch-service-source root))))
 
-(defn -start-reloader! [source root host comm-registry registries]
+(defn -start-reloader! [source root host registries]
   (future
     (loop []
       (when-let [path (runtime/poll! source 5000)]
         (runtime/reload! {:root          root
                           :fs            (fs/instance)
                           :old-config    (loader/snapshot "reload: previous config for the reconcile diff")
-                          :comm-registry comm-registry
                           :registries    registries
                           :host          host
                           :path          path}))
@@ -54,17 +52,15 @@
     (let [module-index  (or (:module-index config) contribution-module-index)
           config*       (assoc config :module-index module-index)
           registries    (-registries)
-          comm-registry @comm-registry/*registry*
           host          (host-context config* root opts)
           source        (-start-config-source config* root opts)]
       (runtime/install! {:config config* :registries registries :host host})
       (runtime/install-config-berths! {:config config* :module-index module-index})
       (some-> source runtime/start!)
-      (reset! running* {:comm-registry comm-registry
-                        :host          host
+      (reset! running* {:host          host
                         :registries    registries
                         :reloader      (when (and source root (not (false? (:start-config-reloader? opts))))
-                                        (-start-reloader! source root host comm-registry registries))
+                                        (-start-reloader! source root host registries))
                         :source        source})
       this))
   (stop [this]
@@ -88,16 +84,14 @@
 (defn valid-start? [config opts]
   (let [host          (or (:host opts) (get-in config [:server :host]) "127.0.0.1")
         start-http?   (not (false? (:start-http-server? opts)))
-        auth-token    (get-in config [:server :auth :token])
-        comm-registry @comm-registry/*registry*]
-    (and (empty? (runtime/validate-config! config comm-registry))
-         (or (not start-http?)
+        auth-token    (get-in config [:server :auth :token])]
+    (or (not start-http?)
              (http/loopback-host? host)
              (when (seq auth-token) true)
              (do (log/error :server/auth-required
                                      :host host
                                      :message "missing :server :auth :token for non-loopback bind")
-                 false)))))
+                 false))))
 
 (defmethod component-factory/create :server-runtime
   [_ {:keys [config module-index opts root]}]

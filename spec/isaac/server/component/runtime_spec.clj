@@ -10,6 +10,9 @@
 
 (describe "server runtime component"
 
+  (it "does not run a server-owned comm validation pass"
+    (should (sut/valid-start? {} {:start-http-server? false})))
+
   (it "starts through the same runner used by the server command"
     (let [manifest     (read-string (slurp "resources/isaac-manifest.edn"))
           module-index {:isaac.server {:manifest manifest}}
@@ -59,12 +62,11 @@
                       :module-index {}})]
       (with-redefs [sut/-registries               (constantly [::registry])
                     sut/-start-config-source        (fn [_ _ _] ::source)
-                    sut/-start-reloader!             (fn [source root host comm-registry registries]
+                    sut/-start-reloader!             (fn [source root host registries]
                                                       (deliver reloaded {:path "crew/scrapper.edn"
                                                                          :source source
                                                                          :root root
                                                                          :host host
-                                                                         :comm-registry comm-registry
                                                                          :registries registries})
                                                       (future nil))
                     runtime/install!               (constantly nil)

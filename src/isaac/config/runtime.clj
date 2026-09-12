@@ -42,16 +42,10 @@
   "Hot-reload coordinator (server only): re-load config from :root/:fs,
    validate it; on error log and keep the running config (returns nil); on
    success commit the new snapshot and reconcile :registries against :old-config.
-   opts keys: :root :fs :old-config :comm-registry :registries :host :path.
+   opts keys: :root :fs :old-config :registries :host :path.
    Returns the new config on success, nil if rejected."
   [opts]
   (install/reload! opts))
-
-(defn validate-config!
-  "Logs comm-impl validation errors for `cfg` against `comm-registry` and returns
-   the seq of errors (empty if valid). Used at boot."
-  [cfg comm-registry]
-  (install/validate-config! cfg comm-registry))
 
 ;; ----- reconciliation (config -> live components) -----
 

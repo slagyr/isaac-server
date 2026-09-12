@@ -6,38 +6,38 @@ Feature: Lifecycle reconciler keeps comm object tree synced with config
 
   Background:
     Given default Grover setup
-    And the "telly" comm is registered
+    And the "test-comm" comm is registered
 
   Scenario: Two comms run independently when both slots are present at boot
     Given config:
       | key                 | value |
-      | comms.bert.type     | telly |
+      | comms.bert.type     | test-comm |
       | comms.bert.loft     | roof |
       | comms.bert.color    | yellow |
-      | comms.ernie.type    | telly |
+      | comms.ernie.type    | test-comm |
       | comms.ernie.loft    | attic |
       | comms.ernie.color   | orange |
     And the Isaac server is started
     Then the comm "bert" exists with state:
       | path         | value  |
       | started?     | true   |
-      | slice.type   | telly  |
+      | slice.type   | test-comm  |
       | slice.color  | yellow |
     And the comm "ernie" exists with state:
       | path         | value  |
       | started?     | true   |
-      | slice.type   | telly  |
+      | slice.type   | test-comm  |
       | slice.color  | orange |
     And the log has entries matching:
       | level | event                | path        | impl  |
-      | :info | :lifecycle/started   | comms.bert  | telly |
-      | :info | :lifecycle/started   | comms.ernie | telly |
+      | :info | :lifecycle/started   | comms.bert  | test-comm |
+      | :info | :lifecycle/started   | comms.ernie | test-comm |
 
   @wip
   Scenario: Comm receives on-config-change! when its slice changes
     Given config:
       | key             | value  |
-      | comms.elmo.type | telly  |
+      | comms.elmo.type | test-comm  |
       | comms.elmo.loft | tower  |
       | comms.elmo.mood | happy  |
     And the Isaac server is started
@@ -50,13 +50,13 @@ Feature: Lifecycle reconciler keeps comm object tree synced with config
       | last-event  | :changed |
     And the log has entries matching:
       | level | event                | path       | impl  |
-      | :info | :lifecycle/changed   | comms.elmo | telly |
+      | :info | :lifecycle/changed   | comms.elmo | test-comm |
 
   @wip
   Scenario: Comm is stopped and evicted when its slot is removed from config
     Given config:
       | key              | value |
-      | comms.abby.type  | telly |
+      | comms.abby.type  | test-comm |
       | comms.abby.loft  | dorm  |
       | comms.abby.color | pink  |
     And the Isaac server is started
@@ -66,7 +66,7 @@ Feature: Lifecycle reconciler keeps comm object tree synced with config
     Then the comm "abby" does not exist
     And the log has entries matching:
       | level | event                | path       | impl  |
-      | :info | :lifecycle/stopped   | comms.abby | telly |
+      | :info | :lifecycle/stopped   | comms.abby | test-comm |
 
   Scenario: Boot fails with a validation error when a slot's :type is unregistered
     Given config:
@@ -84,14 +84,14 @@ Feature: Lifecycle reconciler keeps comm object tree synced with config
     And the comm "grover" does not exist
     When config is updated:
       | path                | value  |
-      | comms.grover.type   | telly  |
+      | comms.grover.type   | test-comm  |
       | comms.grover.loft   | nest   |
       | comms.grover.color  | blue   |
     Then the comm "grover" exists with state:
       | path         | value |
       | started?     | true  |
-      | slice.type   | telly |
+      | slice.type   | test-comm |
       | slice.color  | blue  |
     And the log has entries matching:
       | level | event                | path         | impl  |
-      | :info | :lifecycle/started   | comms.grover | telly |
+      | :info | :lifecycle/started   | comms.grover | test-comm |

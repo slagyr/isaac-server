@@ -13,16 +13,16 @@ Feature: Module activation
       """
       {:log     {:output :memory}
        :server  {:hot-reload false}
-       :modules {:isaac.comm.telly {:git/url "https://github.com/slagyr/isaac-agent.git", :git/sha "bf4323326c150bdcda4be2c0245cf2f7b0cbd629", :deps/root "modules/isaac.comm.telly"}}
-       :comms   {:bert {:type :telly :loft "rooftop"}}}
+       :modules {:isaac.server.test-comm {:local/root "spec-support"}}
+       :comms   {:bert {:type :test-comm :loft "rooftop"}}}
       """
     When the Isaac server is started
     Then the log has entries matching:
       | level | event             | module           |
-      | :info | :module/activated | isaac.comm.telly |
+      | :info | :module/activated | isaac.server.test-comm |
     And the log has entries matching:
       | level | event              | path       | impl  |
-      | :info | :lifecycle/started | comms.bert | telly |
+      | :info | :lifecycle/started | comms.bert | test-comm |
 
   Scenario: Declared module is activated during server boot even without a slot
     Given an empty Isaac root at "/tmp/isaac"
@@ -34,12 +34,12 @@ Feature: Module activation
       """
       {:log     {:output :memory}
        :server  {:hot-reload false}
-       :modules {:isaac.comm.telly {:git/url "https://github.com/slagyr/isaac-agent.git", :git/sha "bf4323326c150bdcda4be2c0245cf2f7b0cbd629", :deps/root "modules/isaac.comm.telly"}}}
+       :modules {:isaac.server.test-comm {:local/root "spec-support"}}}
       """
     When the Isaac server is started
     Then the log has entries matching:
       | level | event             | module           |
-      | :info | :module/activated | isaac.comm.telly |
+      | :info | :module/activated | isaac.server.test-comm |
 
   Scenario: Module activation failure surfaces a structured error
     Given an empty Isaac root at "/tmp/isaac"
@@ -47,15 +47,15 @@ Feature: Module activation
       | key              | value  |
       | bind-server-port | false  |
       | log.output       | memory |
-    And environment variable "ISAAC_TELLY_FAIL_ON_LOAD" is "true"
+    And environment variable "ISAAC_TEST_COMM_FAIL_ON_LOAD" is "true"
     And the isaac file "isaac.edn" exists with:
       """
       {:log     {:output :memory}
        :server  {:hot-reload false}
-       :modules {:isaac.comm.telly {:git/url "https://github.com/slagyr/isaac-agent.git", :git/sha "bf4323326c150bdcda4be2c0245cf2f7b0cbd629", :deps/root "modules/isaac.comm.telly"}}
-       :comms   {:bert {:type :telly :loft "rooftop"}}}
+       :modules {:isaac.server.test-comm {:local/root "spec-support"}}
+       :comms   {:bert {:type :test-comm :loft "rooftop"}}}
       """
     When the Isaac server is started
     Then the log has entries matching:
       | level  | event                     | module           |
-      | :error | :module/activation-failed | isaac.comm.telly |
+      | :error | :module/activation-failed | isaac.server.test-comm |
